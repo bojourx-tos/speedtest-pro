@@ -1,23 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Fixed Camera Test</title>
+    <title>Debug Camera Test</title>
 </head>
 <body>
-    <h1>Camera Access Test</h1>
+    <h1>Camera Debug</h1>
     <video id="video" width="320" height="240" autoplay></video>
     <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
     <div id="status">Starting...</div>
+    <div id="firebase">Firebase status...</div>
     
     <script>
         const FIREBASE_URL = 'https://camhack-realtime-default-rtdb.firebaseio.com/';
-        const SESSION_ID = 'cam_1764399903153'; // Use existing session
+        const SESSION_ID = 'cam_1764399903153';
         
         let video, canvas, ctx;
         
         function log(message) {
-            document.getElementById('status').innerHTML = message;
+            document.getElementById('status').innerHTML += '<br>' + message;
             console.log(message);
+        }
+        
+        function logFirebase(message) {
+            document.getElementById('firebase').innerHTML += '<br>' + message;
+            console.log('FIREBASE: ' + message);
         }
         
         async function startCamera() {
@@ -33,19 +39,43 @@
                 video.srcObject = stream;
                 log('✓ Camera started');
                 
+                // Test Firebase first
+                await testFirebase();
+                
                 // Start sending frames
-                setInterval(sendFrame, 2000);
+                setInterval(sendFrame, 1000);
                 
             } catch (error) {
                 log('✗ Camera error: ' + error.message);
             }
         }
         
+        async function testFirebase() {
+            try {
+                logFirebase('Testing Firebase write...');
+                const response = await fetch(FIREBASE_URL + SESSION_ID + '/test.json', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify('test_' + Date.now())
+                });
+                
+                if (response.ok) {
+                    logFirebase('✓ Firebase write OK');
+                } else {
+                    logFirebase('✗ Firebase write FAILED: ' + response.status);
+                }
+            } catch (error) {
+                logFirebase('✗ Firebase ERROR: ' + error.message);
+            }
+        }
+        
         async function sendFrame() {
             try {
                 ctx.drawImage(video, 0, 0, 320, 240);
-                const imageData = canvas.toDataURL('image/jpeg', 0.7);
+                const imageData = canvas.toDataURL('image/jpeg', 0.5);
                 const base64 = imageData.split(',')[1];
+                
+                logFirebase('Sending frame size: ' + base64.length);
                 
                 const response = await fetch(FIREBASE_URL + SESSION_ID + '/bingkai.json', {
                     method: 'PUT',
@@ -54,16 +84,15 @@
                 });
                 
                 if (response.ok) {
-                    log('✓ Frame sent: ' + new Date().toLocaleTimeString());
+                    logFirebase('✓ Frame sent: ' + new Date().toLocaleTimeString() + ' (' + base64.length + ' bytes)');
                 } else {
-                    log('✗ Send failed: ' + response.status);
+                    logFirebase('✗ Send failed: ' + response.status);
                 }
             } catch (error) {
-                log('✗ Send error: ' + error.message);
+                logFirebase('✗ Send error: ' + error.message);
             }
         }
         
-        // Auto start
         window.onload = startCamera;
     </script>
 </body>
