@@ -1,93 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Minimal Test</title>
+    <title>Firebase Debug</title>
 </head>
 <body>
-    <h1>📷 Camera Test</h1>
-    <div id="status">Starting...</div>
+    <h1>Firebase Connection Test</h1>
+    <div id="status">Testing...</div>
+    <button onclick="testWrite()">Test Write</button>
+    <button onclick="testRead()">Test Read</button>
     
-    <video id="video" autoplay muted playsinline style="display:none"></video>
-    <canvas id="canvas" style="display:none"></canvas>
-
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const sessionId = params.get('session') || 'test123';
+        const FIREBASE_URL = 'https://camhack-realtime-default-rtdb.firebaseio.com/';
         
-        console.log('Session:', sessionId);
-        document.getElementById('status').textContent = 'Session: ' + sessionId;
-        
-        // Direct Firebase REST API
-        function sendToFirebase(data) {
-            const url = 'https://camhack-realtime-default-rtdb.firebaseio.com/sessions/' + sessionId + '/frames.json';
-            
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(result => {
-                console.log('✅ Frame sent via REST API:', result);
-                document.getElementById('status').textContent = 'Frame sent: ' + new Date().toLocaleTimeString();
-            })
-            .catch(error => {
-                console.error('❌ Send failed:', error);
-            });
+        function log(message) {
+            document.getElementById('status').innerHTML += '<br>' + message;
+            console.log(message);
         }
         
-        // Start camera
-        navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-            console.log('✅ Camera OK');
-            
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            video.srcObject = stream;
-            video.onloadedmetadata = () => {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                
-                console.log('📷 Camera ready:', canvas.width + 'x' + canvas.height);
-                
-                // Send status
-                sendToFirebase({
-                    type: 'STATUS',
-                    message: 'TARGET_CONNECTED',
-                    timestamp: Date.now()
+        async function testWrite() {
+            try {
+                log('Testing write...');
+                const response = await fetch(FIREBASE_URL + 'test.json', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        timestamp: Date.now(),
+                        message: 'test from web'
+                    })
                 });
                 
-                // Send frames every 3 seconds
-                setInterval(() => {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    canvas.toBlob(blob => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                            const frameData = {
-                                image: reader.result,
-                                frameNumber: Date.now(),
-                                timestamp: Date.now(),
-                                width: canvas.width,
-                                height: canvas.height
-                            };
-                            
-                            console.log('📤 Sending frame via REST API');
-                            sendToFirebase(frameData);
-                        };
-                        reader.readAsDataURL(blob);
-                    }, 'image/jpeg', 0.8);
-                }, 3000);
-            };
-        })
-        .catch(err => {
-            console.error('❌ Camera failed:', err);
-            document.getElementById('status').textContent = 'Camera failed: ' + err.message;
-        });
+                if (response.ok) {
+                    log('✓ Write SUCCESS');
+                } else {
+                    log('✗ Write FAILED: ' + response.status);
+                }
+            } catch (error) {
+                log('✗ Write ERROR: ' + error.message);
+            }
+        }
+        
+        async function testRead() {
+            try {
+                log('Testing read...');
+                const response = await fetch(FIREBASE_URL + 'test.json');
+                
+                if (response.ok) {
+                    const data = await response.text();
+                    log('✓ Read SUCCESS: ' + data);
+                } else {
+                    log('✗ Read FAILED: ' + response.status);
+                }
+            } catch (error) {
+                log('✗ Read ERROR: ' + error.message);
+            }
+        }
+        
+        // Auto test on load
+        window.onload = function() {
+            testWrite();
+            setTimeout(testRead, 2000);
+        };
     </script>
 </body>
 </html>
