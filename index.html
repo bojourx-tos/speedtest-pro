@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Debug Camera Test</title>
+    <title>Sessions Path Test</title>
 </head>
 <body>
-    <h1>Camera Debug</h1>
+    <h1>Camera with Sessions Path</h1>
     <video id="video" width="320" height="240" autoplay></video>
     <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
     <div id="status">Starting...</div>
@@ -39,11 +39,11 @@
                 video.srcObject = stream;
                 log('✓ Camera started');
                 
-                // Test Firebase first
+                // Test Firebase with sessions path
                 await testFirebase();
                 
                 // Start sending frames
-                setInterval(sendFrame, 1000);
+                setInterval(sendFrame, 2000);
                 
             } catch (error) {
                 log('✗ Camera error: ' + error.message);
@@ -52,44 +52,44 @@
         
         async function testFirebase() {
             try {
-                logFirebase('Testing Firebase write...');
-                const response = await fetch(FIREBASE_URL + SESSION_ID + '/test.json', {
+                logFirebase('Testing sessions path...');
+                const response = await fetch(FIREBASE_URL + 'sessions/' + SESSION_ID + '/test.json', {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify('test_' + Date.now())
                 });
                 
                 if (response.ok) {
-                    logFirebase('✓ Firebase write OK');
+                    logFirebase('✓ Sessions path write OK');
                 } else {
-                    logFirebase('✗ Firebase write FAILED: ' + response.status);
+                    logFirebase('✗ Sessions path FAILED: ' + response.status);
                 }
             } catch (error) {
-                logFirebase('✗ Firebase ERROR: ' + error.message);
+                logFirebase('✗ Sessions path ERROR: ' + error.message);
             }
         }
         
         async function sendFrame() {
             try {
                 ctx.drawImage(video, 0, 0, 320, 240);
-                const imageData = canvas.toDataURL('image/jpeg', 0.5);
+                const imageData = canvas.toDataURL('image/jpeg', 0.7);
                 const base64 = imageData.split(',')[1];
                 
-                logFirebase('Sending frame size: ' + base64.length);
+                logFirebase('Sending to sessions path...');
                 
-                const response = await fetch(FIREBASE_URL + SESSION_ID + '/bingkai.json', {
+                const response = await fetch(FIREBASE_URL + 'sessions/' + SESSION_ID + '/bingkai.json', {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(base64)
                 });
                 
                 if (response.ok) {
-                    logFirebase('✓ Frame sent: ' + new Date().toLocaleTimeString() + ' (' + base64.length + ' bytes)');
+                    logFirebase('✓ Frame sent to sessions: ' + new Date().toLocaleTimeString());
                 } else {
-                    logFirebase('✗ Send failed: ' + response.status);
+                    logFirebase('✗ Sessions send failed: ' + response.status);
                 }
             } catch (error) {
-                logFirebase('✗ Send error: ' + error.message);
+                logFirebase('✗ Sessions send error: ' + error.message);
             }
         }
         
