@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>X-TOS Webhook</title>
+    <style>
+        body { font-family: monospace; background: #000; color: #0f0; padding: 20px; }
+        .log { border: 1px solid #0f0; padding: 10px; margin: 10px 0; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="hidden">
+        <h2>🛡️ X-TOS Data Receiver</h2>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        // Auto-redirect to prevent user seeing this page
+        const urlParams = new URLSearchParams(window.location.search);
+        const lat = urlParams.get('lat');
+        const lng = urlParams.get('lng');
+        
+        if (lat && lng) {
+            // Store location data
+            const data = {
+                latitude: parseFloat(lat),
+                longitude: parseFloat(lng),
+                timestamp: Date.now(),
+                userAgent: navigator.userAgent
+            };
+            
+            // Save to localStorage for app to read
+            localStorage.setItem('xtos_tracked_location', JSON.stringify(data));
+            
+            // Redirect immediately
+            window.location.href = `https://maps.google.com/?q=${lat},${lng}`;
+        } else {
+            // No coordinates, redirect to maps
+            window.location.href = 'https://maps.google.com/';
+        }
+    </script>
+</body>
+</html>
