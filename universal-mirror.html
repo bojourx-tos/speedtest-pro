@@ -120,16 +120,16 @@
                 📷 Camera: ${device.hasCamera ? 'Yes' : 'No'}
             `;
             
-            // Try screen sharing first (desktop)
+            // Try screen sharing first (desktop with support)
             if (device.isDesktop && device.hasScreenShare && device.isHTTPS) {
                 currentMode = 'screen';
                 document.getElementById('status').innerHTML = '🖥️ Desktop detected - Trying screen share...';
                 await tryScreenShare();
             }
-            // Fallback to camera (mobile or failed screen share)
+            // Use camera (mobile or no screen share support)
             else if (device.hasCamera) {
                 currentMode = 'camera';
-                document.getElementById('status').innerHTML = '📱 Mobile/Fallback - Using camera...';
+                document.getElementById('status').innerHTML = '📷 Camera mode - Point camera at target screen';
                 await tryCamera();
             }
             // Last resort - manual mode
@@ -162,22 +162,37 @@
         
         async function tryCamera() {
             try {
-                // Try back camera first, then front
-                const constraints = {
+                document.getElementById('status').innerHTML = '🔄 Requesting camera access...';
+                
+                // Try back camera first (better for capturing screens/documents)
+                let constraints = {
                     video: { 
-                        width: { ideal: 1280 }, 
-                        height: { ideal: 720 },
-                        facingMode: { ideal: 'environment' }
+                        width: { ideal: 1920 }, 
+                        height: { ideal: 1080 },
+                        facingMode: { ideal: 'environment' } // Back camera
                     },
                     audio: false
                 };
                 
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                document.getElementById('status').innerHTML = '✅ Camera active (fallback mode)';
+                try {
+                    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (backCameraError) {
+                    // Fallback to front camera
+                    constraints.video.facingMode = { ideal: 'user' };
+                    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                }
+                
+                document.getElementById('status').innerHTML = '✅ Camera active - Point at screen to mirror';
                 setupCapture('camera');
                 
             } catch (error) {
-                document.getElementById('status').innerHTML = '❌ Camera failed - Manual mode';
+                let errorMsg = 'Camera access failed';
+                if (error.name === 'NotAllowedError') {
+                    errorMsg = 'Camera permission denied. Please allow camera access.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg = 'No camera found on device.';
+                }
+                document.getElementById('status').innerHTML = '❌ ' + errorMsg;
                 document.getElementById('controls').style.display = 'block';
             }
         }
@@ -246,12 +261,14 @@
                 window.universalMirrorData = mirrorData;
                 
                 // Update status
-                const modeIcon = mode === 'screen' ? '🖥️' : '📱';
+                const modeIcon = mode === 'screen' ? '🖥️' : '📷';
+                const modeText = mode === 'screen' ? 'SCREEN' : 'CAMERA';
                 document.getElementById('status').innerHTML = 
-                    `${modeIcon} ${mode.toUpperCase()} Mirror - Frame ${frameCount} - ${new Date().toLocaleTimeString()}`;
+                    `${modeIcon} ${modeText} MIRROR ACTIVE - Frame ${frameCount} - ${new Date().toLocaleTimeString()}`;
                 
-                // Continue capturing
-                setTimeout(captureFrame, 1000); // 1 second intervals
+                // Continue capturing (faster for camera mode)
+                const interval = mode === 'camera' ? 800 : 1000;
+                setTimeout(captureFrame, interval);
             }
             
             // Start capturing
