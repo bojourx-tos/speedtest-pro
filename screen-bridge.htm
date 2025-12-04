@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Bridge</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            background: #000; 
+            color: #ff0000; 
+            font-family: monospace; 
+            text-align: center; 
+        }
+        .status { 
+            padding: 10px; 
+            background: #330000; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+        }
+        .data-display {
+            background: #0a0000;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #660000;
+            border-radius: 5px;
+            font-size: 10px;
+            max-height: 100px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <h2>📺 Screen Data Bridge</h2>
+    <div id="status" class="status">Initializing bridge...</div>
+    <div id="dataDisplay" class="data-display">No data yet</div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const webhookId = urlParams.get('webhook');
+        const statusDiv = document.getElementById('status');
+        const dataDisplay = document.getElementById('dataDisplay');
+        
+        let lastDataTime = 0;
+        let dataCount = 0;
+        
+        function checkScreenData() {
+            const keys = [
+                'live_screen_' + webhookId,
+                'screen_data_' + webhookId,
+                'screen_broadcast'
+            ];
+            
+            let foundData = null;
+            let dataSource = '';
+            
+            // Check all possible data sources
+            for (let key of keys) {
+                const data = localStorage.getItem(key);
+                if (data) {
+                    if (key === 'screen_broadcast') {
+                        try {
+                            const broadcast = JSON.parse(data);
+                            if (broadcast.webhook === webhookId && broadcast.timestamp > lastDataTime) {
+                                foundData = broadcast.data;
+                                dataSource = 'broadcast';
+                                lastDataTime = broadcast.timestamp;
+                            }
+                        } catch(e) {}
+                    } else if (key.startsWith('screen_data_')) {
+                        try {
+                            const parsed = JSON.parse(data);
+                            foundData = parsed.screenData;
+                            dataSource = 'structured';
+                        } catch(e) {
+                            foundData = data;
+                            dataSource = 'direct';
+                        }
+                    } else {
+                        foundData = data;
+                        dataSource = 'live';
+                    }
+                    
+                    if (foundData && foundData.length > 100) {
+                        break;
+                    }
+                }
+            }
+            
+            if (foundData && foundData.length > 100) {
+                dataCount++;
+                
+                // Make data available for Android WebView
+                window.androidScreenData = {
+                    screenData: foundData,
+                    timestamp: new Date().toISOString(),
+                    source: dataSource,
+                    count: dataCount,
+                    webhook: webhookId
+                };
+                
+                // Also store in a predictable location
+                localStorage.setItem('android_screen_' + webhookId, foundData);
+                
+                statusDiv.innerHTML = `✅ Data found (${dataSource}) - Frame ${dataCount}`;
+                dataDisplay.innerHTML = `Data size: ${foundData.length} chars<br>Source: ${dataSource}<br>Time: ${new Date().toLocaleTimeString()}`;
+                
+                return true;
+            } else {
+                statusDiv.innerHTML = '⏳ Waiting for screen data...';
+                return false;
+            }
+        }
+        
+        // Check for data every 500ms
+        setInterval(checkScreenData, 500);
+        
+        // Listen for storage events
+        window.addEventListener('storage', (e) => {
+            if (e.key && (e.key.includes(webhookId) || e.key === 'screen_broadcast')) {
+                checkScreenData();
+            }
+        });
+        
+        // Expose function for Android to call
+        window.getScreenData = function() {
+            if (window.androidScreenData) {
+                return JSON.stringify(window.androidScreenData);
+            }
+            return null;
+        };
+        
+        statusDiv.innerHTML = `🔄 Bridge ready for webhook: ${webhookId}`;
+    </script>
+</body>
+</html>
