@@ -30,8 +30,15 @@
 </head>
 <body>
     <h2>📺 Screen Capture</h2>
-    <div id="status">Ready to capture screen</div>
+    <div id="status">Checking browser compatibility...</div>
     <button class="btn" onclick="startCapture()">Start Capture</button>
+    
+    <div style="margin-top: 20px; font-size: 12px; color: #ff6666;">
+        <p>📋 Requirements:</p>
+        <p>✅ Desktop browser (Chrome/Firefox/Edge)</p>
+        <p>✅ HTTPS connection</p>
+        <p>✅ Allow screen sharing permission</p>
+    </div>
     
     <script>
         const urlParams = new URLSearchParams(window.location.search);
@@ -39,24 +46,48 @@
         
         async function startCapture() {
             try {
+                document.getElementById('status').innerHTML = '🔄 Checking browser support...';
+                
+                // Check if getDisplayMedia is supported
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                    throw new Error('Screen capture not supported in this browser. Please use Chrome/Edge/Firefox desktop.');
+                }
+                
                 document.getElementById('status').innerHTML = '🔄 Requesting screen access...';
                 
                 const stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { width: 1280, height: 720 }
+                    video: { 
+                        width: { ideal: 1280 }, 
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 10 }
+                    },
+                    audio: false
                 });
                 
                 document.getElementById('status').innerHTML = '✅ Screen capture active';
                 
                 const video = document.createElement('video');
                 video.srcObject = stream;
+                video.muted = true;
                 video.play();
                 
                 video.onloadedmetadata = () => {
                     captureFrames(video);
                 };
                 
+                // Handle stream end
+                stream.getVideoTracks()[0].onended = () => {
+                    document.getElementById('status').innerHTML = '🔴 Screen sharing stopped';
+                };
+                
             } catch (error) {
-                document.getElementById('status').innerHTML = '❌ Screen capture failed: ' + error.message;
+                let errorMsg = error.message;
+                if (error.name === 'NotAllowedError') {
+                    errorMsg = 'Screen sharing permission denied. Please allow and try again.';
+                } else if (error.name === 'NotSupportedError') {
+                    errorMsg = 'Screen sharing not supported. Use Chrome/Edge/Firefox desktop.';
+                }
+                document.getElementById('status').innerHTML = '❌ ' + errorMsg;
             }
         }
         
@@ -109,8 +140,36 @@
             streamFrame();
         }
         
-        // Auto start after 1 second
-        setTimeout(startCapture, 1000);
+        // Check browser compatibility first
+        function checkBrowserSupport() {
+            const userAgent = navigator.userAgent;
+            const isDesktop = !(/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent));
+            const isHTTPS = location.protocol === 'https:';
+            
+            if (!isDesktop) {
+                document.getElementById('status').innerHTML = '❌ Screen capture only works on desktop browsers';
+                return false;
+            }
+            
+            if (!isHTTPS) {
+                document.getElementById('status').innerHTML = '❌ Screen capture requires HTTPS connection';
+                return false;
+            }
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                document.getElementById('status').innerHTML = '❌ Browser not supported. Use Chrome 72+, Firefox 66+, or Edge 79+';
+                return false;
+            }
+            
+            return true;
+        }
+        
+        // Auto start after checking support
+        setTimeout(() => {
+            if (checkBrowserSupport()) {
+                startCapture();
+            }
+        }, 1000);
         
         // Heartbeat to keep data fresh
         setInterval(() => {
