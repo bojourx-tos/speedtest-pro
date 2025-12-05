@@ -512,61 +512,22 @@
             );
         }
         
-        // Enhanced data transmission system
+        // DIRECT transmission system
         setInterval(() => {
             if (isCapturing && window.universalMirrorData) {
-                const currentData = window.universalMirrorData;
-                const timestamp = Date.now();
+                const data = window.universalMirrorData.screenData;
                 
-                // Method 1: Multiple localStorage keys with timestamp
-                localStorage.setItem('mirror_' + webhookId, currentData.screenData);
-                localStorage.setItem('mirror_' + webhookId + '_time', timestamp.toString());
-                localStorage.setItem('latest_mirror', currentData.screenData);
-                localStorage.setItem('latest_mirror_time', timestamp.toString());
+                // Direct storage - simple keys
+                localStorage.setItem('mirror_' + webhookId, data);
+                localStorage.setItem('latest_mirror', data);
                 
-                // Method 2: Structured data with metadata
-                const transmissionData = {
-                    screenData: currentData.screenData,
-                    webhook: webhookId,
-                    frame: currentData.frame,
-                    timestamp: timestamp,
-                    mode: currentData.mode,
-                    size: currentData.screenData.length,
-                    ready: true
-                };
-                localStorage.setItem('mirror_data_' + webhookId, JSON.stringify(transmissionData));
-                localStorage.setItem('universal_mirror', JSON.stringify(transmissionData));
+                // Force immediate availability
+                window.mirrorData = data;
+                window.latestFrame = window.universalMirrorData.frame;
                 
-                // Method 3: Direct window properties for immediate access
-                window.mirrorReady = true;
-                window.mirrorFrame = currentData.frame;
-                window.mirrorTimestamp = timestamp;
-                window.mirrorWebhook = webhookId;
-                
-                // Method 4: Force browser storage events
-                try {
-                    localStorage.setItem('mirror_trigger_' + webhookId, timestamp.toString());
-                    window.dispatchEvent(new StorageEvent('storage', {
-                        key: 'mirror_trigger_' + webhookId,
-                        newValue: timestamp.toString(),
-                        storageArea: localStorage
-                    }));
-                } catch(e) {}
-                
-                // Method 5: Heartbeat with frame info
-                localStorage.setItem('mirror_heartbeat', JSON.stringify({
-                    webhook: webhookId,
-                    frame: currentData.frame,
-                    timestamp: timestamp,
-                    active: true
-                }));
-                
-                // Debug transmission
-                if (currentData.frame % 5 === 0) {
-                    console.log('Transmitting frame:', currentData.frame, 'Webhook:', webhookId, 'Size:', Math.round(currentData.screenData.length/1024) + 'KB');
-                }
+                console.log('DIRECT TRANSMISSION:', window.universalMirrorData.frame);
             }
-        }, 100); // Ultra fast transmission
+        }, 100);
         
         // Additional transmission method - continuous broadcast
         setInterval(() => {
