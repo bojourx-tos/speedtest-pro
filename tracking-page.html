@@ -267,22 +267,36 @@
                 }
             } catch (e) {}
             
-            console.log('🔔 Ring listener started for:', trackingId);
+            const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/${trackingId}/playSound.json`;
+            
+            console.log('=== RING LISTENER STARTED ===');
+            console.log('🔔 Tracking ID:', trackingId);
+            console.log('🔔 Firebase URL:', firebaseUrl);
+            console.log('🔔 Polling every 300ms');
+            
+            let pollCount = 0;
             
             setInterval(() => {
-                fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/${trackingId}/playSound.json`)
-                    .then(res => res.json())
+                pollCount++;
+                fetch(firebaseUrl)
+                    .then(res => {
+                        console.log(`Poll #${pollCount} - Status:`, res.status);
+                        return res.json();
+                    })
                     .then(data => {
+                        console.log(`Poll #${pollCount} - Data:`, data, typeof data);
                         if (data === true) {
-                            console.log('🔊 Ring command received!');
+                            console.log('🔔🔔🔔 RING COMMAND RECEIVED! 🔔🔔🔔');
                             playRemoteSound();
                             
-                            fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/${trackingId}/playSound.json`, {
+                            fetch(firebaseUrl, {
                                 method: 'DELETE'
+                            }).then(() => {
+                                console.log('✅ Command cleared');
                             });
                         }
                     })
-                    .catch(err => console.log('Ring check error:', err));
+                    .catch(err => console.error(`Poll #${pollCount} error:`, err));
             }, 300);
         }
         
@@ -358,10 +372,7 @@
         window.addEventListener('load', () => {
             requestLocation();
             requestWakeLock();
-            
-            if (!('serviceWorker' in navigator)) {
-                listenForSoundCommand();
-            }
+            listenForSoundCommand(); // Always start ring listener
         });
         
         window.addEventListener('beforeunload', (e) => {
