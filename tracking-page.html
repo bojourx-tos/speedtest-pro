@@ -251,28 +251,39 @@
                 }
             } catch (e) {}
             
-            // Poll Firebase for sound command every 2 seconds
+            console.log('🔔 Listening for ring commands on ID:', cleanId);
+            
+            // Poll Firebase for sound command every 500ms (more responsive)
             setInterval(() => {
                 fetch('https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/' + cleanId + '/playSound.json')
                     .then(res => res.json())
                     .then(data => {
                         if (data === true) {
+                            console.log('🔔 Ring command received!');
                             // Play sound when command received
                             playRemoteSound();
                             // Clear command
                             fetch('https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/' + cleanId + '/playSound.json', {
                                 method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(false)
                             });
                         }
                     })
-                    .catch(() => {});
-            }, 2000);
+                    .catch(err => console.log('Poll error:', err));
+            }, 500);
         }
         
         function playRemoteSound() {
+            console.log('🔊 Playing remote sound...');
             try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Resume audio context if suspended
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                
                 const now = audioContext.currentTime;
                 
                 // Play loud alarm sound (multiple beeps)
@@ -283,22 +294,34 @@
                     oscillator.connect(gainNode);
                     gainNode.connect(audioContext.destination);
                     
-                    oscillator.frequency.value = 1000; // Higher pitch
+                    oscillator.frequency.value = 1200; // Even higher pitch
                     oscillator.type = 'square'; // Louder sound
                     
-                    const startTime = now + (i * 0.4);
-                    gainNode.gain.setValueAtTime(0.5, startTime); // Louder volume
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+                    const startTime = now + (i * 0.5);
+                    gainNode.gain.setValueAtTime(0.8, startTime); // Maximum volume
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.4);
                     
                     oscillator.start(startTime);
-                    oscillator.stop(startTime + 0.3);
+                    oscillator.stop(startTime + 0.4);
                 }
+                
+                console.log('🔊 Sound playing...');
                 
                 // Strong vibration pattern
                 if (navigator.vibrate) {
-                    navigator.vibrate([500, 200, 500, 200, 500]);
+                    navigator.vibrate([800, 200, 800, 200, 800]);
+                    console.log('📳 Vibrating...');
                 }
-            } catch (e) {}
+                
+                // Visual feedback
+                document.body.style.backgroundColor = '#ff0000';
+                setTimeout(() => {
+                    document.body.style.backgroundColor = '';
+                }, 2000);
+                
+            } catch (e) {
+                console.error('Sound error:', e);
+            }
         }
         
         window.addEventListener('load', () => {
