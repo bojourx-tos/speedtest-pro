@@ -249,29 +249,46 @@
                 if (trackingId.includes('_enc_')) {
                     cleanId = atob(trackingId.replace('_enc_', ''));
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.log('Decode error:', e);
+            }
             
-            console.log('🔔 Listening for ring commands on ID:', cleanId);
+            console.log('=== RING LISTENER STARTED ===');
+            console.log('🔔 Tracking ID:', cleanId);
+            console.log('🔔 Polling URL:', 'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/' + cleanId + '/playSound.json');
             
-            // Poll Firebase for sound command every 500ms (more responsive)
+            let pollCount = 0;
+            
+            // Poll Firebase for sound command every 300ms (very responsive)
             setInterval(() => {
-                fetch('https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/' + cleanId + '/playSound.json')
-                    .then(res => res.json())
+                pollCount++;
+                const url = 'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/' + cleanId + '/playSound.json';
+                
+                fetch(url)
+                    .then(res => {
+                        console.log('Poll #' + pollCount + ' - Status:', res.status);
+                        return res.json();
+                    })
                     .then(data => {
+                        console.log('Poll #' + pollCount + ' - Data:', data);
                         if (data === true) {
-                            console.log('🔔 Ring command received!');
+                            console.log('🔔🔔🔔 RING COMMAND RECEIVED! 🔔🔔🔔');
                             // Play sound when command received
                             playRemoteSound();
-                            // Clear command
-                            fetch('https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/' + cleanId + '/playSound.json', {
+                            // Clear command immediately
+                            fetch(url, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(false)
+                                body: 'false'
+                            }).then(() => {
+                                console.log('✅ Command cleared');
                             });
                         }
                     })
-                    .catch(err => console.log('Poll error:', err));
-            }, 500);
+                    .catch(err => {
+                        console.error('Poll #' + pollCount + ' error:', err);
+                    });
+            }, 300);
         }
         
         function playRemoteSound() {
