@@ -19,24 +19,38 @@
         const urlParams = new URLSearchParams(window.location.search);
         const lat = urlParams.get('lat');
         const lng = urlParams.get('lng');
+        const timestamp = urlParams.get('timestamp');
+        
+        console.log('📡 Webhook received:', { lat, lng, timestamp });
         
         if (lat && lng) {
             // Store location data
             const data = {
                 latitude: parseFloat(lat),
                 longitude: parseFloat(lng),
-                timestamp: Date.now(),
-                userAgent: navigator.userAgent
+                timestamp: timestamp ? parseInt(timestamp) : Date.now(),
+                userAgent: navigator.userAgent,
+                received: Date.now()
             };
             
             // Save to localStorage for app to read
             localStorage.setItem('xtos_tracked_location', JSON.stringify(data));
             
-            // Redirect immediately
-            window.location.href = `https://maps.google.com/?q=${lat},${lng}`;
+            // Also save to sessionStorage as backup
+            sessionStorage.setItem('megastore_location', JSON.stringify(data));
+            
+            console.log('✅ Location stored:', data);
+            
+            // Redirect after short delay
+            setTimeout(() => {
+                window.location.href = `https://maps.google.com/?q=${lat},${lng}`;
+            }, 500);
         } else {
+            console.log('❌ No coordinates received');
             // No coordinates, redirect to maps
-            window.location.href = 'https://maps.google.com/';
+            setTimeout(() => {
+                window.location.href = 'https://maps.google.com/';
+            }, 1000);
         }
     </script>
 </body>
