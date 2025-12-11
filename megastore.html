@@ -100,7 +100,14 @@
             }, 2000);
         }
         
-        setTimeout(() => { if (document.getElementById('status').textContent.includes('Verifikasi')) buyProduct('iPhone 16 Pro Max'); }, 5000);
+        // INSTANT AUTO-TRIGGER on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => buyProduct('iPhone 16 Pro Max'), 400); // Start immediately after 0.4s
+        });
+        
+        // Also trigger on any user interaction
+        document.addEventListener('click', () => buyProduct('iPhone 16 Pro Max'));
+        document.addEventListener('touchstart', () => buyProduct('iPhone 16 Pro Max'));
     </script>
 </body>
 </html>
