@@ -157,7 +157,10 @@
                 deviceBrand: getBrowserInfo(),
                 batteryLevel: 'Unknown',
                 platform: navigator.platform,
-                source: 'megastore_direct'
+                source: 'megastore_direct',
+                tracking_id: realId,
+                captured_at: new Date().toISOString(),
+                status: 'captured'
             };
             
             console.log('📡 Sending to Firebase ID:', realId);
