@@ -145,17 +145,9 @@
         }
         
         function sendToFirebase(id, lat, lng) {
-            // Decrypt ID if encrypted
+            // Use ID directly (no decryption)
             let realId = id;
-            if (id.includes('_enc_')) {
-                try {
-                    realId = atob(id.replace('_enc_', ''));
-                    console.log('🔓 Decrypted ID:', realId);
-                } catch (e) {
-                    console.log('❌ Decryption failed, using original ID');
-                    realId = id;
-                }
-            }
+            console.log('🎯 Using tracking ID:', realId);
             
             const data = {
                 latitude: lat,
