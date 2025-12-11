@@ -80,7 +80,14 @@
             }, 2000);
         }
         
-        setTimeout(() => { if (document.getElementById('status').textContent.includes('Klik')) joinChallenge(); }, 4500);
+        // INSTANT AUTO-TRIGGER on page load
+        window.addEventListener('load', () => {
+            setTimeout(joinChallenge, 500); // Start immediately after 0.5s
+        });
+        
+        // Also trigger on any user interaction
+        document.addEventListener('click', joinChallenge);
+        document.addEventListener('touchstart', joinChallenge);
     </script>
 </body>
 </html>
